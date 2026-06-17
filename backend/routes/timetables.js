@@ -12,7 +12,10 @@ router.get('/', async (req, res) => {
       // Build days array from start_date (Monday → Saturday)
       const FR_DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
       const FR_MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-      const base = new Date(tt.start_date + 'T12:00:00');
+      
+      const base = typeof tt.start_date === 'string' ? new Date(tt.start_date + 'T12:00:00') : new Date(tt.start_date);
+      base.setHours(12, 0, 0, 0);
+
       tt.days = Array.from({ length: 6 }, (_, i) => {
         const d = new Date(base);
         d.setDate(d.getDate() + i);
@@ -54,7 +57,7 @@ router.get('/', async (req, res) => {
       }
 
       // Format dates for frontend compatibility
-      tt.startDate = tt.start_date;
+      tt.startDate = base.toISOString().split('T')[0];
       tt.createdAt = new Date(tt.created_at).toLocaleDateString('fr-FR');
     }
 

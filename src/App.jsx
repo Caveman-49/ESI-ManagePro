@@ -178,6 +178,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
     const newTT = {
       period: periodLabel,
       startDate: startDateStr,
+      start_date: startDateStr,
       days: [...weekDays],
       schedules: newSchedules,
       notes: newNotes
@@ -1189,7 +1190,7 @@ function App() {
     setModFormError('');
     setModModal({
       open: true, mode: 'edit',
-      data: { name: mod.name, teacher: mod.teacher || '', className: mod.className || '', semester: mod.semester, totalHours: String(mod.totalHours), remainingHours: String(mod.remainingHours), progress: String(mod.progress), prerequisite: mod.prerequisite || '', status: mod.status },
+      data: { name: mod.name, teacher: mod.teacher || '', className: mod.className || '', semester: mod.semester, totalHours: String(mod.total_hours), remainingHours: String(mod.remaining_hours), progress: String(mod.progress), prerequisite: mod.prerequisite || '', status: mod.status },
       editId: mod.id
     });
   };
@@ -2089,7 +2090,7 @@ function App() {
                               </div>
                               <div className="flex items-center">
                                 <span className="w-32 font-semibold">Volume horaire:</span>
-                                <span className="text-text-main font-mono">{mod.totalHours}h (Reste: {mod.remainingHours}h)</span>
+                                <span className="text-text-main font-mono">{mod.total_hours}h (Reste: {mod.remaining_hours}h)</span>
                               </div>
                             </div>
                             
