@@ -6,7 +6,7 @@ const router = Router();
 // GET /api/modules
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await pool.query(`
+    const { rows } = await pool.query(`
       SELECT m.*,
              p.name AS teacher,
              c.name AS className,
@@ -31,16 +31,16 @@ router.post('/', async (req, res) => {
     const id = 'MOD-' + Date.now();
     await pool.query(
       `INSERT INTO modules (id, name, teacher_id, class_id, semester, total_hours, remaining_hours, progress, prerequisite_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [id, name, teacher_id || null, class_id, semester, total_hours || 0, remaining_hours || 0, progress || 0, prerequisite_id || null, status || 'En cours']
     );
-    const [rows] = await pool.query(`
+    const { rows } = await pool.query(`
       SELECT m.*, p.name AS teacher, c.name AS className, prereq.name AS prerequisite
       FROM modules m
       LEFT JOIN professors p ON m.teacher_id = p.id
       LEFT JOIN classes c ON m.class_id = c.id
       LEFT JOIN modules prereq ON m.prerequisite_id = prereq.id
-      WHERE m.id = ?
+      WHERE m.id = $1
     `, [id]);
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -54,17 +54,17 @@ router.put('/:id', async (req, res) => {
   try {
     const { name, teacher_id, class_id, semester, total_hours, remaining_hours, progress, prerequisite_id, status } = req.body;
     await pool.query(
-      `UPDATE modules SET name=?, teacher_id=?, class_id=?, semester=?, total_hours=?, remaining_hours=?, progress=?, prerequisite_id=?, status=?
-       WHERE id=?`,
+      `UPDATE modules SET name=$1, teacher_id=$2, class_id=$3, semester=$4, total_hours=$5, remaining_hours=$6, progress=$7, prerequisite_id=$8, status=$9
+       WHERE id=$10`,
       [name, teacher_id || null, class_id, semester, total_hours, remaining_hours, progress, prerequisite_id || null, status, req.params.id]
     );
-    const [rows] = await pool.query(`
+    const { rows } = await pool.query(`
       SELECT m.*, p.name AS teacher, c.name AS className, prereq.name AS prerequisite
       FROM modules m
       LEFT JOIN professors p ON m.teacher_id = p.id
       LEFT JOIN classes c ON m.class_id = c.id
       LEFT JOIN modules prereq ON m.prerequisite_id = prereq.id
-      WHERE m.id = ?
+      WHERE m.id = $1
     `, [req.params.id]);
     res.json(rows[0]);
   } catch (err) {
@@ -76,7 +76,7 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/modules/:id
 router.delete('/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM modules WHERE id = ?', [req.params.id]);
+    await pool.query('DELETE FROM modules WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);

@@ -28,6 +28,7 @@ const api = {
   getDashboardStats: () => request('/dashboard/stats'),
   getTodaySchedule: () => request('/dashboard/today-schedule'),
   getClassPerformance: () => request('/dashboard/class-performance'),
+  getEvalStats: () => request('/dashboard/eval-stats'),
 
   // ── Classes ──
   getClasses: () => request('/classes'),
@@ -57,6 +58,7 @@ const api = {
   getEvaluations: () => request('/evaluations'),
   createEvaluation: (data) => request('/evaluations', { method: 'POST', body: JSON.stringify(data) }),
   updateEvaluation: (id, data) => request(`/evaluations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  updateEvaluationStatus: (id, status) => request(`/evaluations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deleteEvaluation: (id) => request(`/evaluations/${id}`, { method: 'DELETE' }),
 
   // ── Timetables ──

@@ -616,7 +616,7 @@ const getClassSemesters = (className) => {
   return ['S1', 'S2'];
 };
 
-const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTimetables, darkMode, openEditMod, deleteMod, openAddMod, openEditEval, deleteEval, openAddEval }) => {
+const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTimetables, darkMode, openEditMod, deleteMod, openAddMod, openEditEval, deleteEval, openAddEval, updateEvalStatus }) => {
   const semesters = getClassSemesters(cls.name);
   const [selectedSemester, setSelectedSemester] = useState(semesters[0]);
   const [innerTab, setInnerTab] = useState('modules');
@@ -627,15 +627,17 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
     return e.classGroup === cls.name && semesterModules.some(m => m.name === e.moduleName);
   });
 
-  const filteredModules = semesterModules.filter(mod =>
-    mod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    mod.teacher.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredModules = semesterModules.filter(mod => {
+    const q = searchQuery.toLowerCase();
+    return (mod.name || '').toLowerCase().includes(q) ||
+      (mod.teacher || '').toLowerCase().includes(q);
+  });
 
-  const filteredEvals = semesterEvals.filter(ev =>
-    ev.moduleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ev.type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredEvals = semesterEvals.filter(ev => {
+    const q = searchQuery.toLowerCase();
+    return (ev.moduleName || '').toLowerCase().includes(q) ||
+      (ev.type || '').toLowerCase().includes(q);
+  });
 
   // Calculate simple stats
   const totalHours = semesterModules.reduce((acc, m) => acc + (m.totalHours || 0), 0);
@@ -787,40 +789,52 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-border-main bg-bg-main shadow-sm dark:shadow-none">
-              <table className="w-full border-collapse text-left min-w-[700px]">
+              <table className="w-full border-collapse text-left min-w-[560px]">
                 <thead>
                   <tr className="bg-bg-hover text-text-muted text-xs font-semibold uppercase tracking-wider border-b border-border-main">
                     <th className="p-4 pl-6">Module / Type</th>
                     <th className="p-4">Date et Heure</th>
-                    <th className="p-4">Salle</th>
-                    <th className="p-4 text-center">Poids</th>
+                    <th className="p-4 text-center">Statut</th>
                     <th className="p-4 pr-6 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-main text-sm">
                   {filteredEvals.length > 0 ? filteredEvals.map(ev => (
-                    <tr key={ev.id} className="hover:bg-bg-hover transition duration-150">
+                    <tr key={ev.id} className="hover:bg-bg-hover transition duration-150 group">
                       <td className="p-4 pl-6">
                         <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{ev.type}</span>
                         <h5 className="font-heading font-semibold text-text-main mt-1 m-0">{ev.moduleName}</h5>
                       </td>
                       <td className="p-4 text-text-muted text-xs">
                         <span className="block font-medium">{ev.date}</span>
-                        <span className="font-mono text-[10px]">{ev.time}</span>
+                        <span className="font-mono text-[10px]">{(ev.time || '').substring(0, 5)}</span>
                       </td>
-                      <td className="p-4 text-xs font-medium text-text-main">{ev.room}</td>
                       <td className="p-4 text-center">
-                        <span className="text-xs font-bold bg-amber-500/10 text-amber-600 px-2.5 py-1 rounded-lg border border-amber-500/20">{ev.weight}%</span>
+                        <select
+                          value={ev.status}
+                          onChange={e => updateEvalStatus(ev.id, e.target.value)}
+                          className={`text-[10px] font-bold uppercase rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none transition
+                            ${ev.status === 'Effectué' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                              ev.status === 'Planifié' ? 'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'  :
+                              ev.status === 'En cours' ? 'bg-amber-500/10   text-amber-600   border-amber-500/20'   :
+                                                         'bg-rose-500/10    text-rose-600    border-rose-500/20'    }
+                          `}
+                        >
+                          <option value="Planifié">Planifié</option>
+                          <option value="En cours">En cours</option>
+                          <option value="Effectué">Effectué</option>
+                          <option value="Annulé">Annulé</option>
+                        </select>
                       </td>
                       <td className="p-4 pr-6 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openEditEval(ev)} className="p-2 text-text-muted hover:text-emerald-600 hover:bg-emerald-500/10 rounded-lg transition"><Pencil className="w-4 h-4" /></button>
                           <button onClick={() => deleteEval(ev.id)} className="p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan="5" className="text-center py-8 text-text-muted text-sm border-dashed">Aucune évaluation trouvée.</td></tr>
+                    <tr><td colSpan="4" className="text-center py-8 text-text-muted text-sm border-dashed">Aucune évaluation pour ce semestre.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -852,6 +866,47 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
                 <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl"><ClipboardCheck className="w-6 h-6" /></div>
               </div>
             </div>
+
+            {/* Répartition évaluations par statut */}
+            {semesterEvals.length > 0 && (() => {
+              const evEffectue = semesterEvals.filter(e => e.status === 'Effectué').length;
+              const evPlanifie = semesterEvals.filter(e => e.status === 'Planifié').length;
+              const evEnCours  = semesterEvals.filter(e => e.status === 'En cours').length;
+              const evAnnule   = semesterEvals.filter(e => e.status === 'Annulé').length;
+              const tauxEval   = semesterEvals.length > 0 ? Math.round((evEffectue / semesterEvals.length) * 100) : 0;
+              return (
+                <div className="bg-bg-main border border-border-main p-6 rounded-xl space-y-4">
+                  <h4 className="font-heading font-bold text-base text-text-main">Progression des Évaluations</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
+                      <p className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Effectuées</p>
+                      <p className="text-xl font-extrabold text-emerald-500">{evEffectue}</p>
+                    </div>
+                    <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3 text-center">
+                      <p className="text-[10px] uppercase font-bold text-indigo-500 mb-1">Planifiées</p>
+                      <p className="text-xl font-extrabold text-indigo-400">{evPlanifie}</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-center">
+                      <p className="text-[10px] uppercase font-bold text-amber-600 mb-1">En cours</p>
+                      <p className="text-xl font-extrabold text-amber-500">{evEnCours}</p>
+                    </div>
+                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-center">
+                      <p className="text-[10px] uppercase font-bold text-rose-500 mb-1">Annulées</p>
+                      <p className="text-xl font-extrabold text-rose-400">{evAnnule}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs text-text-muted mb-1.5">
+                      <span>Taux de réalisation</span>
+                      <span className="font-semibold text-emerald-500">{tauxEval}%</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-bg-surface rounded-full overflow-hidden border border-border-main">
+                      <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${tauxEval}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="bg-bg-main border border-border-main p-6 rounded-xl">
               <h4 className="font-heading font-bold text-base text-text-main mb-6">Progression des Heures de Cours</h4>
@@ -1009,6 +1064,7 @@ function App() {
   const [dashboardStats, setDashboardStats] = useState({ totalClasses: 0, totalProfessors: 0, upcomingEvals: 0 });
   const [todayScheduleState, setTodayScheduleState] = useState([]);
   const [classPerformanceState, setClassPerformanceState] = useState([]);
+  const [evalStatsState, setEvalStatsState] = useState({ total: 0, effectue: 0, planifie: 0, enCours: 0, tauxRealisation: 0, chart: [] });
 
   const getModuleProgressValue = (mod) => {
     const rawProgress = mod.progress ?? (mod.progress && mod.progress.value);
@@ -1121,13 +1177,22 @@ const loadData = async () => {
       }));
       setClasses(mappedClasses);
 
-      const profs = await api.getProfessors();
-      setProfessors(profs);
+      const rawProfs = await api.getProfessors();
+      const mappedProfs = rawProfs.map(p => ({
+        id: p.id,
+        name: p.name || '',
+        department: p.department || '',
+        email: p.email || '',
+        availability: p.availability || 'Disponible',
+        avatarBg: p.avatar_bg || p.avatarBg || 'bg-indigo-600',
+        activeModules: p.activeModules || p.active_modules || [],
+      }));
+      setProfessors(mappedProfs);
 
       // --- MAPPING DES MODULES (Neon -> React) ---
       const rawMods = await api.getModules();
       const mappedModules = rawMods.map(m => {
-        const profObj = profs.find(p => p.id === (m.teacher_id || m.teacherId));
+        const profObj = mappedProfs.find(p => p.id === (m.teacher_id || m.teacherId));
         const classObj = mappedClasses.find(c => c.id === (m.class_id || m.classId));
         
         return {
@@ -1146,8 +1211,24 @@ const loadData = async () => {
       });
       setModules(mappedModules);
 
-      const evals = await api.getEvaluations();
-      setEvaluations(evals);
+      const rawEvals = await api.getEvaluations();
+      const mappedEvals = rawEvals.map(e => ({
+        id: e.id,
+        moduleName: e.modulename || e.moduleName || '',
+        type: e.type || 'Evaluation',
+        date: e.eval_date ? String(e.eval_date).split('T')[0] : (e.date || ''),
+        eval_date: e.eval_date ? String(e.eval_date).split('T')[0] : (e.date || ''),
+        time: e.eval_time || e.time || '',
+        classGroup: e.classgroup || e.classGroup || '',
+        room: e.room || '',
+        weight: e.weight || 100,
+        status: e.status || 'Planifié',
+        module_id: e.module_id,
+        class_id: e.class_id,
+        room_id: e.room_id,
+        academic_year_id: e.academic_year_id,
+      }));
+      setEvaluations(mappedEvals);
 
       const tts = await api.getTimetables();
       setTimetables(tts);
@@ -1163,6 +1244,9 @@ const loadData = async () => {
 
       const performance = await api.getClassPerformance();
       setClassPerformanceState(performance);
+
+      const evalStats = await api.getEvalStats();
+      setEvalStatsState(evalStats);
     } catch (err) {
       console.error("Failed to fetch data from API:", err);
     }
@@ -1190,6 +1274,17 @@ const loadData = async () => {
     if (!name.trim()) { setClsFormError('Le nom de la classe est requis.'); return; }
     const count = parseInt(studentCount, 10);
     if (isNaN(count) || count < 0) { setClsFormError('Effectif invalide.'); return; }
+    const mapClass = (c) => ({
+      id: c.id,
+      name: c.name || '',
+      specialty: c.specialty || '',
+      level: c.level || '',
+      studentCount: c.student_count ?? c.studentCount ?? 0,
+      headTeacherId: c.head_teacher_id || c.headTeacherId || null,
+      representative: c.representative || '',
+      scheduleProgress: c.schedule_progress ?? c.scheduleProgress ?? 0,
+      headTeacher: c.headteacher || c.headTeacher || '',
+    });
     try {
       if (clsModal.editId) {
         const updated = await api.updateClass(clsModal.editId, {
@@ -1197,7 +1292,7 @@ const loadData = async () => {
           student_count: count,
           representative: representative.trim()
         });
-        setClasses(prev => prev.map(c => c.id === clsModal.editId ? updated : c));
+        setClasses(prev => prev.map(c => c.id === clsModal.editId ? mapClass(updated) : c));
       }
       closeCls();
       const stats = await api.getDashboardStats();
@@ -1226,7 +1321,7 @@ const loadData = async () => {
   const [modFormError, setModFormError] = useState('');
   const [expandedModuleId, setExpandedModuleId] = useState(null);
 
-  const [evalModal, setEvalModal] = useState({ open: false, mode: 'add', data: { moduleName: '', type: 'Evaluation', date: '', time: '', classGroup: '', room: '', weight: '100', status: 'Planifié' }, editId: null });
+  const [evalModal, setEvalModal] = useState({ open: false, mode: 'add', data: { moduleName: '', type: 'Evaluation', date: '', time: '', classGroup: '', status: 'Planifié' }, editId: null });
   const [evalFormError, setEvalFormError] = useState('');
 
   // Hook to toggle dark class on document element
@@ -1266,13 +1361,22 @@ const loadData = async () => {
       activeModules: activeModules.split(',').map(m => m.trim()).filter(Boolean),
       avatarBg: AVATAR_COLORS[professors.length % AVATAR_COLORS.length]
     };
+    const mapProf = (p) => ({
+      id: p.id,
+      name: p.name || '',
+      department: p.department || '',
+      email: p.email || '',
+      availability: p.availability || 'Disponible',
+      avatarBg: p.avatar_bg || p.avatarBg || 'bg-indigo-600',
+      activeModules: p.activeModules || p.active_modules || [],
+    });
     try {
       if (profModal.mode === 'add') {
         const created = await api.createProfessor(payload);
-        setProfessors(prev => [...prev, created]);
+        setProfessors(prev => [...prev, mapProf(created)]);
       } else {
         const updated = await api.updateProfessor(profModal.editId, payload);
-        setProfessors(prev => prev.map(p => p.id === profModal.editId ? updated : p));
+        setProfessors(prev => prev.map(p => p.id === profModal.editId ? mapProf(updated) : p));
       }
       closeProf();
       const stats = await api.getDashboardStats();
@@ -1303,7 +1407,7 @@ const loadData = async () => {
     setModFormError('');
     setModModal({
       open: true, mode: 'edit',
-      data: { name: mod.name, teacher: mod.teacher || '', className: mod.className || '', semester: mod.semester, totalHours: String(mod.total_hours), remainingHours: String(mod.remaining_hours), progress: String(mod.progress), prerequisite: mod.prerequisite || '', status: mod.status },
+      data: { name: mod.name, teacher: mod.teacher || '', className: mod.className || '', semester: mod.semester, totalHours: String(mod.totalHours ?? 0), remainingHours: String(mod.remainingHours ?? 0), progress: String(mod.progress ?? 0), prerequisite: mod.prerequisite || '', status: mod.status },
       editId: mod.id
     });
   };
@@ -1311,8 +1415,8 @@ const loadData = async () => {
   const handleModField = (field, value) => setModModal(m => ({ ...m, data: { ...m.data, [field]: value } }));
   const saveMod = async () => {
     const { name, teacher, className, semester, totalHours, remainingHours, progress, prerequisite, status } = modModal.data;
-    if (!name.trim() || !teacher.trim() || !className.trim() || !semester.trim()) {
-      setModFormError('Nom, enseignant, classe et semestre sont requis.');
+    if (!name.trim() || !className.trim() || !semester.trim()) {
+      setModFormError('Nom, classe et semestre sont requis.');
       return;
     }
     let th = parseInt(totalHours) || 0;
@@ -1324,7 +1428,7 @@ const loadData = async () => {
       rh = 0;
     }
 
-    const profObj = professors.find(p => p.name === teacher.trim());
+    const profObj = teacher.trim() ? professors.find(p => p.name === teacher.trim()) : null;
     const classObj = classes.find(c => c.name === className.trim());
     const prereqObj = modules.find(m => m.name === prerequisite?.trim());
 
@@ -1340,13 +1444,32 @@ const loadData = async () => {
       status
     };
 
+    const mapMod = (m) => {
+      const pObj = professors.find(p => p.id === m.teacher_id);
+      const cObj = classes.find(c => c.id === m.class_id);
+      return {
+        id: m.id,
+        name: m.name || '',
+        teacher: pObj ? pObj.name : (m.teacher || 'Non assigné'),
+        teacherId: m.teacher_id || null,
+        classId: m.class_id || m.classId || null,
+        className: cObj ? cObj.name : (m.classname || m.className || ''),
+        semester: m.semester,
+        totalHours: m.total_hours ?? m.totalHours ?? 0,
+        remainingHours: m.remaining_hours ?? m.remainingHours ?? 0,
+        progress: m.progress ?? 0,
+        prerequisite: m.prerequisite || '',
+        status: m.status || 'En cours',
+      };
+    };
+
     try {
       if (modModal.mode === 'add') {
         const created = await api.createModule(payload);
-        setModules(prev => [...prev, created]);
+        setModules(prev => [...prev, mapMod(created)]);
       } else {
         const updated = await api.updateModule(modModal.editId, payload);
-        setModules(prev => prev.map(m => m.id === modModal.editId ? updated : m));
+        setModules(prev => prev.map(m => m.id === modModal.editId ? mapMod(updated) : m));
       }
       closeMod();
       const performance = await api.getClassPerformance();
@@ -1377,7 +1500,7 @@ const loadData = async () => {
     setEvalFormError('');
     setEvalModal({
       open: true, mode: 'edit',
-      data: { moduleName: ev.moduleName, type: ev.type, date: ev.eval_date || ev.date, time: ev.time, classGroup: ev.classGroup, status: ev.status },
+      data: { moduleName: ev.moduleName, type: ev.type, date: ev.eval_date || ev.date, time: ev.time || '', classGroup: ev.classGroup, status: ev.status },
       editId: ev.id
     });
   };
@@ -1414,21 +1537,40 @@ const loadData = async () => {
       class_id: classObj ? classObj.id : null,
       room_id: null,
       academic_year_id: ayObj ? ayObj.id : null,
-      weight: 100,
+      weight: 1,
       status: status || 'Planifié'
     };
+
+    const mapEval = (e) => ({
+      id: e.id,
+      moduleName: e.modulename || e.moduleName || moduleName,
+      type: e.type || type,
+      date: e.eval_date ? String(e.eval_date).split('T')[0] : date,
+      eval_date: e.eval_date ? String(e.eval_date).split('T')[0] : date,
+      time: e.eval_time || e.time || time,
+      classGroup: e.classgroup || e.classGroup || classGroup,
+      room: e.room || '',
+      weight: e.weight || 100,
+      status: e.status || status,
+      module_id: e.module_id,
+      class_id: e.class_id,
+      room_id: e.room_id,
+      academic_year_id: e.academic_year_id,
+    });
 
     try {
       if (evalModal.mode === 'add') {
         const created = await api.createEvaluation(payload);
-        setEvaluations(prev => [...prev, created]);
+        setEvaluations(prev => [...prev, mapEval(created)]);
       } else {
         const updated = await api.updateEvaluation(evalModal.editId, payload);
-        setEvaluations(prev => prev.map(e => e.id === evalModal.editId ? updated : e));
+        setEvaluations(prev => prev.map(e => e.id === evalModal.editId ? mapEval(updated) : e));
       }
       closeEval();
       const stats = await api.getDashboardStats();
       setDashboardStats(stats);
+      const evalStats = await api.getEvalStats();
+      setEvalStatsState(evalStats);
     } catch (err) {
       setEvalFormError(err.message || 'Erreur lors de la sauvegarde.');
     }
@@ -1440,9 +1582,24 @@ const loadData = async () => {
         setEvaluations(prev => prev.filter(e => e.id !== id));
         const stats = await api.getDashboardStats();
         setDashboardStats(stats);
+        const evalStats = await api.getEvalStats();
+        setEvalStatsState(evalStats);
       } catch (err) {
         alert(err.message || 'Erreur lors de la suppression.');
       }
+    }
+  };
+
+  const updateEvalStatus = async (id, newStatus) => {
+    try {
+      await api.updateEvaluationStatus(id, newStatus);
+      setEvaluations(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+      const stats = await api.getDashboardStats();
+      setDashboardStats(stats);
+      const evalStats = await api.getEvalStats();
+      setEvalStatsState(evalStats);
+    } catch (err) {
+      alert(err.message || 'Erreur lors du changement de statut.');
     }
   };
 
@@ -1474,9 +1631,10 @@ const loadData = async () => {
     const ayObj = academicYears.find(ay => ay.label === selectedYear);
     return evaluations.filter(ev => {
       if (ayObj && ev.academic_year_id && ev.academic_year_id !== ayObj.id) return false;
-      return ev.moduleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (ev.classGroup && ev.classGroup.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        ev.type.toLowerCase().includes(searchQuery.toLowerCase());
+      const q = searchQuery.toLowerCase();
+      return (ev.moduleName || '').toLowerCase().includes(q) ||
+        ((ev.classGroup || '').toLowerCase().includes(q)) ||
+        (ev.type || '').toLowerCase().includes(q);
     });
   }, [searchQuery, evaluations, selectedYear, academicYears]);
 
@@ -1734,13 +1892,13 @@ const loadData = async () => {
                       <div className="bg-bg-main border border-border-main p-4 rounded-xl space-y-3 transition-colors duration-200">
                         <div className="flex justify-between text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                           <span>{nextEvaluation.type}</span>
-                          <span>{new Date(nextEvaluation.eval_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
+                          <span>{nextEvaluation.eval_date ? new Date(nextEvaluation.eval_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : nextEvaluation.date}</span>
                         </div>
                         <h5 className="font-heading font-bold text-sm text-text-main">{nextEvaluation.moduleName}</h5>
                         <div className="text-xs text-text-muted space-y-1">
                           <p>Groupe: {nextEvaluation.classGroup}</p>
                           <p>Lieu: {nextEvaluation.room}</p>
-                          <p>Date: {new Date(nextEvaluation.eval_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} ({nextEvaluation.eval_time.substring(0, 5)})</p>
+                          <p>Date: {nextEvaluation.eval_date ? new Date(nextEvaluation.eval_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : nextEvaluation.date} ({(nextEvaluation.eval_time || nextEvaluation.time || '').substring(0, 5)})</p>
                         </div>
                       </div>
                     </div>
@@ -1787,6 +1945,7 @@ const loadData = async () => {
               openEditEval={openEditEval}
               deleteEval={deleteEval}
               openAddEval={openAddEval}
+              updateEvalStatus={updateEvalStatus}
             />
           ) : currentTab === 'classes' && (
             <div className="space-y-6">
@@ -2195,7 +2354,9 @@ const loadData = async () => {
                             <div className="space-y-3 text-xs text-text-muted">
                               <div className="flex items-center">
                                 <span className="w-32 font-semibold">Enseignant:</span>
-                                <span className="text-text-main font-medium">{mod.teacher}</span>
+                                <span className={`font-medium ${mod.teacher && mod.teacher !== 'Non assigné' ? 'text-text-main' : 'text-text-muted italic'}`}>
+                                  {mod.teacher && mod.teacher !== 'Non assigné' ? mod.teacher : 'Non défini'}
+                                </span>
                               </div>
                               <div className="flex items-center">
                                 <span className="w-32 font-semibold">Prérequis:</span>
@@ -2203,7 +2364,7 @@ const loadData = async () => {
                               </div>
                               <div className="flex items-center">
                                 <span className="w-32 font-semibold">Volume horaire:</span>
-                                <span className="text-text-main font-mono">{mod.total_hours}h (Reste: {mod.remaining_hours}h)</span>
+                                <span className="text-text-main font-mono">{mod.totalHours}h (Reste: {mod.remainingHours}h)</span>
                               </div>
                             </div>
 
@@ -2250,8 +2411,8 @@ const loadData = async () => {
                         <input type="text" value={modModal.data.name} onChange={e => handleModField('name', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Enseignant *</label>
-                        <input type="text" value={modModal.data.teacher} onChange={e => handleModField('teacher', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
+                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Enseignant <span className="text-text-muted normal-case font-normal">(optionnel)</span></label>
+                        <input type="text" placeholder="Non défini" value={modModal.data.teacher} onChange={e => handleModField('teacher', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Classe *</label>
@@ -2324,20 +2485,18 @@ const loadData = async () => {
 
               {/* Evaluations Table */}
               <div className="overflow-x-auto rounded-xl border border-border-main bg-bg-surface shadow-sm dark:shadow-none transition-colors duration-200">
-                <table className="w-full border-collapse text-left min-w-[800px]">
+                <table className="w-full border-collapse text-left min-w-[600px]">
                   <thead>
                     <tr className="bg-bg-hover text-text-muted text-xs font-semibold uppercase tracking-wider border-b border-border-main">
                       <th className="p-4 pl-6">Module / Type</th>
                       <th className="p-4">Classe</th>
                       <th className="p-4">Date et Heure</th>
-                      <th className="p-4">Salle</th>
-                      <th className="p-4 text-center">Poids (%)</th>
                       <th className="p-4 text-center">Statut</th>
                       <th className="p-4 pr-6 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-main text-sm">
-                    {filteredEvaluations.map(ev => (
+                    {filteredEvaluations.length > 0 ? filteredEvaluations.map(ev => (
                       <tr key={ev.id} className="hover:bg-bg-hover transition duration-150 group">
                         <td className="p-4 pl-6">
                           <div>
@@ -2348,21 +2507,24 @@ const loadData = async () => {
                         <td className="p-4 font-semibold text-text-main">{ev.classGroup}</td>
                         <td className="p-4 text-text-muted text-xs">
                           <span className="block font-medium">{ev.date}</span>
-                          <span className="font-mono text-[10px]">{ev.time}</span>
+                          <span className="font-mono text-[10px]">{(ev.time || '').substring(0, 5)}</span>
                         </td>
-                        <td className="p-4">
-                          <span className="flex items-center gap-1.5 text-xs text-text-main">
-                            <MapPin className="w-3.5 h-3.5 text-text-muted" />
-                            {ev.room}
-                          </span>
-                        </td>
-                        <td className="p-4 text-center font-bold font-mono text-text-main">{ev.weight}%</td>
                         <td className="p-4 text-center">
-                          <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border
-                            ${ev.status === 'Terminé' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'}
-                          `}>
-                            {ev.status}
-                          </span>
+                          <select
+                            value={ev.status}
+                            onChange={e => updateEvalStatus(ev.id, e.target.value)}
+                            className={`text-[10px] font-bold uppercase rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none transition
+                              ${ev.status === 'Effectué'  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                                ev.status === 'Planifié'  ? 'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'  :
+                                ev.status === 'En cours'  ? 'bg-amber-500/10   text-amber-600   border-amber-500/20'   :
+                                                             'bg-rose-500/10    text-rose-600    border-rose-500/20'    }
+                            `}
+                          >
+                            <option value="Planifié">Planifié</option>
+                            <option value="En cours">En cours</option>
+                            <option value="Effectué">Effectué</option>
+                            <option value="Annulé">Annulé</option>
+                          </select>
                         </td>
                         <td className="p-4 pr-6">
                           <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2375,7 +2537,9 @@ const loadData = async () => {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )) : (
+                      <tr><td colSpan="5" className="text-center py-10 text-text-muted text-sm">Aucune évaluation trouvée.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2399,14 +2563,13 @@ const loadData = async () => {
                         <input
                           type="text"
                           list="evaluation-modules"
+                          placeholder="Sélectionner ou saisir un module..."
                           value={evalModal.data.moduleName}
                           onChange={e => handleEvalField('moduleName', e.target.value)}
                           className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition"
                         />
                         <datalist id="evaluation-modules">
-                          {modules.map(mod => (
-                            <option key={mod.id} value={mod.name} />
-                          ))}
+                          {modules.map(mod => <option key={mod.id} value={mod.name} />)}
                         </datalist>
                       </div>
                       <div className="col-span-2">
@@ -2414,15 +2577,33 @@ const loadData = async () => {
                         <input
                           type="text"
                           list="evaluation-classes"
+                          placeholder="Sélectionner ou saisir une classe..."
                           value={evalModal.data.classGroup}
                           onChange={e => handleEvalField('classGroup', e.target.value)}
                           className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition"
                         />
                         <datalist id="evaluation-classes">
-                          {classes.map(cls => (
-                            <option key={cls.id} value={cls.name} />
-                          ))}
+                          {classes.map(cls => <option key={cls.id} value={cls.name} />)}
                         </datalist>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Type</label>
+                        <select value={evalModal.data.type} onChange={e => handleEvalField('type', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition">
+                          <option value="Evaluation">Évaluation</option>
+                          <option value="Examen">Examen</option>
+                          <option value="Contrôle">Contrôle</option>
+                          <option value="TP noté">TP noté</option>
+                          <option value="Oral">Oral</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Statut</label>
+                        <select value={evalModal.data.status} onChange={e => handleEvalField('status', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition">
+                          <option value="Planifié">Planifié</option>
+                          <option value="En cours">En cours</option>
+                          <option value="Effectué">Effectué</option>
+                          <option value="Annulé">Annulé</option>
+                        </select>
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Date *</label>
@@ -2438,7 +2619,9 @@ const loadData = async () => {
 
                     <div className="flex gap-3 pt-2">
                       <button onClick={closeEval} className="flex-1 py-2 text-sm font-semibold border border-border-main rounded-xl text-text-muted hover:bg-bg-main transition">Annuler</button>
-                      <button onClick={saveEval} className="flex-1 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-sm shadow-emerald-500/20">Enregistrer</button>
+                      <button onClick={saveEval} className="flex-1 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-sm shadow-emerald-500/20">
+                        {evalModal.mode === 'add' ? 'Ajouter' : 'Enregistrer'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2520,6 +2703,80 @@ const loadData = async () => {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
+              </div>
+
+              {/* ── Graphique Progression des Évaluations ── */}
+              <div className="bg-bg-surface border border-border-main shadow-sm dark:shadow-none p-6 rounded-2xl transition-colors duration-200">
+                <div className="mb-6">
+                  <h4 className="font-heading font-semibold text-lg text-text-main m-0">Progression des Évaluations</h4>
+                  <p className="text-xs text-text-muted mt-2">Répartition des évaluations selon leur statut (Effectué / Planifié / En cours).</p>
+                </div>
+
+                {/* KPI cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-bg-main border border-border-main rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-text-muted mb-2">Total</p>
+                    <p className="text-2xl font-bold text-text-main">{evalStatsState.total}</p>
+                  </div>
+                  <div className="bg-bg-main border border-emerald-500/30 rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-text-muted mb-2">Effectuées</p>
+                    <p className="text-2xl font-bold text-emerald-500">{evalStatsState.effectue}</p>
+                  </div>
+                  <div className="bg-bg-main border border-indigo-500/30 rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-text-muted mb-2">Planifiées</p>
+                    <p className="text-2xl font-bold text-indigo-400">{evalStatsState.planifie}</p>
+                  </div>
+                  <div className="bg-bg-main border border-amber-500/30 rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-text-muted mb-2">Taux réalisation</p>
+                    <p className="text-2xl font-bold text-amber-500">{evalStatsState.tauxRealisation}%</p>
+                  </div>
+                </div>
+
+                {/* Barre de progression */}
+                <div className="mb-6">
+                  <div className="flex justify-between text-xs text-text-muted mb-1.5">
+                    <span>Réalisation</span>
+                    <span className="font-semibold text-text-main">{evalStatsState.tauxRealisation}%</span>
+                  </div>
+                  <div className="w-full h-3 bg-bg-main rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+                      style={{ width: `${evalStatsState.tauxRealisation}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* PieChart répartition */}
+                {evalStatsState.chart.length > 0 ? (
+                  <div className="w-full h-[240px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Tooltip contentStyle={chartTooltipStyle} formatter={(value, name) => [`${value} éval.`, name]} />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                        <Pie
+                          data={evalStatsState.chart}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="45%"
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={4}
+                          label={({ name, value }) => `${name}: ${value}`}
+                          labelLine={false}
+                        >
+                          {evalStatsState.chart.map((entry, index) => (
+                            <Cell key={`eval-slice-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[100px] text-text-muted text-sm">
+                    Aucune évaluation enregistrée.
+                  </div>
+                )}
               </div>
 
             </div>

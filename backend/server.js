@@ -11,6 +11,7 @@ import modulesRoutes from './routes/modules.js';
 import evaluationsRoutes from './routes/evaluations.js';
 import timetablesRoutes from './routes/timetables.js';
 import dashboardRoutes from './routes/dashboard.js';
+import { startEvalAutoUpdateJob } from './jobs/evalAutoUpdate.js';
 
 dotenv.config();
 
@@ -33,11 +34,13 @@ app.use('/api/timetables', timetablesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 // ── Health check ──
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // ── Start ──
 app.listen(PORT, () => {
   console.log(`✅ ESIManage Pro API running on http://localhost:${PORT}`);
+  // Démarre le job de mise à jour automatique des statuts d'évaluations
+  startEvalAutoUpdateJob();
 });
