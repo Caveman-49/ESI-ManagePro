@@ -13,6 +13,7 @@ import modulesRoutes from './routes/modules.js';
 import evaluationsRoutes from './routes/evaluations.js';
 import timetablesRoutes from './routes/timetables.js';
 import dashboardRoutes from './routes/dashboard.js';
+import { authenticateToken } from './middleware/authMiddleware.js';
 import { startEvalAutoUpdateJob } from './jobs/evalAutoUpdate.js';
 import { recalcModuleProgress } from './jobs/recalcModuleProgress.js';
 
@@ -28,18 +29,20 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// ── API Routes ──
+// ── Routes Auth (publiques /login + /me avec check token interne) ──
 app.use('/api/auth', authRoutes);
-app.use('/api/academic-years', academicYearsRoutes);
-app.use('/api/classes', classesRoutes);
-app.use('/api/professors', professorsRoutes);
-app.use('/api/rooms', roomsRoutes);
-app.use('/api/modules', modulesRoutes);
-app.use('/api/evaluations', evaluationsRoutes);
-app.use('/api/timetables', timetablesRoutes);
-app.use('/api/dashboard', dashboardRoutes);
 
-// ── Health check ──
+// ── Routes API protegees par JWT ──
+app.use('/api/academic-years', authenticateToken, academicYearsRoutes);
+app.use('/api/classes', authenticateToken, classesRoutes);
+app.use('/api/professors', authenticateToken, professorsRoutes);
+app.use('/api/rooms', authenticateToken, roomsRoutes);
+app.use('/api/modules', authenticateToken, modulesRoutes);
+app.use('/api/evaluations', authenticateToken, evaluationsRoutes);
+app.use('/api/timetables', authenticateToken, timetablesRoutes);
+app.use('/api/dashboard', authenticateToken, dashboardRoutes);
+
+// ── Health check (public) ──
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -49,15 +52,13 @@ const distPath = path.resolve(__dirname, '..', 'dist');
 app.use(express.static(distPath));
 
 // Catch-all: serve index.html for any non-API route (SPA support)
-app.get('*', (_req, res) => {
+app.get('{*path}', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // ── Start ──
 app.listen(PORT, () => {
-  console.log('✅ ESIManage Pro API running on http://localhost:' + PORT);
-  // Démarre le job de mise à jour automatique des statuts d'évaluations
+  console.log('ESIManage Pro API running on http://localhost:' + PORT);
   startEvalAutoUpdateJob();
-  // Recalcul initial de la progression des modules
   recalcModuleProgress();
 });

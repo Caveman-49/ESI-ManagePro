@@ -1,13 +1,9 @@
 import pool from './db.js';
-import crypto from 'crypto';
-
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
-}
+import bcrypt from 'bcrypt';
 
 async function run() {
   try {
-    const hashedPassword = hashPassword('@EsimanagerL2G16');
+    const hashedPassword = await bcrypt.hash('@EsimanagerL2G16', 10);
 
     const { rows } = await pool.query(
       `INSERT INTO users (id, name, email, password_hash, role)
@@ -17,11 +13,11 @@ async function run() {
       ['USR-02', 'Directeur Adjoint', 'esi@manager26.dz', hashedPassword, 'Admin']
     );
 
-    console.log('✅ Utilisateur ajouté avec succès :');
+    console.log('Utilisateur ajoute avec succes :');
     console.log(JSON.stringify(rows[0], null, 2));
     process.exit(0);
   } catch (err) {
-    console.error('❌ Erreur lors de l\'ajout de l\'utilisateur :', err);
+    console.error('Erreur lors de l ajout de l utilisateur :', err);
     process.exit(1);
   }
 }
