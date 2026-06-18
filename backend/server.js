@@ -52,7 +52,7 @@ const distPath = path.resolve(__dirname, '..', 'dist');
 app.use(express.static(distPath));
 
 // Catch-all: serve index.html for any non-API route (SPA support)
-app.get('{*path}', (_req, res) => {
+app.get(/^\/(?!api\/).*/, (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 

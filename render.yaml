@@ -18,8 +18,10 @@ services:
     # Variables d'environnement
     envVars:
       - key: NODE_VERSION
-        value: 22
+        value: 20
       - key: PORT
         value: 10000
       - key: DATABASE_URL
         sync: false  # Sera définie manuellement dans le dashboard Render
+      - key: JWT_SECRET
+        sync: false
