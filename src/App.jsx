@@ -966,7 +966,7 @@ const LoginPage = ({ onLogin }) => {
     try {
       const res = await api.login(email, password);
       if (res.success) {
-        onLogin();
+        onLogin(res.token, res.user);
       } else {
         setError('Identifiants incorrects.');
       }
@@ -1699,7 +1699,7 @@ const loadData = async () => {
   }, [darkMode]);
 
   if (!isAuthenticated) {
-    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   return (
