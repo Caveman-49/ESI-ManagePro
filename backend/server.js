@@ -12,6 +12,7 @@ import evaluationsRoutes from './routes/evaluations.js';
 import timetablesRoutes from './routes/timetables.js';
 import dashboardRoutes from './routes/dashboard.js';
 import { startEvalAutoUpdateJob } from './jobs/evalAutoUpdate.js';
+import { recalcModuleProgress } from './jobs/recalcModuleProgress.js';
 
 dotenv.config();
 
@@ -43,4 +44,6 @@ app.listen(PORT, () => {
   console.log(`✅ ESIManage Pro API running on http://localhost:${PORT}`);
   // Démarre le job de mise à jour automatique des statuts d'évaluations
   startEvalAutoUpdateJob();
+  // Recalcul initial de la progression des modules
+  recalcModuleProgress();
 });

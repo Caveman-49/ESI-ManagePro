@@ -89,7 +89,7 @@ function makeEmptySchedules() {
 }
 
 // --- Weekly Timetable Component ---------------------------------------
-function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables }) {
+function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, onDataChange }) {
   const targetClasses = filterClass ? [filterClass] : TT_CLASSES;
 
   // -- Real system date: Monday of current week --
@@ -140,6 +140,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
         });
         setTimetables(prev => prev.map(t => t.id === ttId ? updated : t));
         setSessionModal(m => ({ ...m, open: false }));
+        if (onDataChange) onDataChange();
       } catch (err) {
         alert("Erreur lors de la modification de la séance: " + err.message);
       }
@@ -168,6 +169,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
         });
         setTimetables(prev => prev.map(t => t.id === ttId ? updated : t));
         setSessionModal(m => ({ ...m, open: false }));
+        if (onDataChange) onDataChange();
       } catch (err) {
         alert("Erreur lors de la suppression de la séance: " + err.message);
       }
@@ -190,6 +192,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
       setNewSchedules(makeEmptySchedules());
       setNewNotes({});
       setShowForm(false);
+      if (onDataChange) onDataChange();
     } catch (err) {
       alert("Erreur lors de la création de l'emploi du temps: " + err.message);
     }
@@ -380,7 +383,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
           <p className="text-xs text-text-muted mt-0.5">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
+          className="flex items-center gap-2  bg-gradient-to-r from-emerald-600 to-green-600 hover:from-indigo-700 hover:to-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
           {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           {showForm ? 'Annuler' : 'Nouvel Emploi du Temps'}
         </button>
@@ -471,6 +474,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
                     try {
                       await api.deleteTimetable(tt.id);
                       setTimetables(p => p.filter(t => t.id !== tt.id));
+                      if (onDataChange) onDataChange();
                     } catch (err) {
                       alert("Erreur lors de la suppression: " + err.message);
                     }
@@ -635,8 +639,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
 
   const filteredEvals = semesterEvals.filter(ev => {
     const q = searchQuery.toLowerCase();
-    return (ev.moduleName || '').toLowerCase().includes(q) ||
-      (ev.type || '').toLowerCase().includes(q);
+    return (ev.moduleName || '').toLowerCase().includes(q);
   });
 
   // Calculate simple stats
@@ -655,7 +658,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
         </button>
         <div>
           <h2 className="font-heading font-extrabold text-2xl text-text-main m-0">{cls.name}</h2>
-          <p className="text-sm text-text-muted mt-1">{cls.specialty} â€¢ {cls.studentCount} Étudiants</p>
+          <p className="text-sm text-text-muted mt-1">{cls.specialty} â€¢ {cls.studentCount > 0 ? `${cls.studentCount} Étudiants` : 'Effectif non défini'}</p>
         </div>
       </div>
 
@@ -792,7 +795,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
               <table className="w-full border-collapse text-left min-w-[560px]">
                 <thead>
                   <tr className="bg-bg-hover text-text-muted text-xs font-semibold uppercase tracking-wider border-b border-border-main">
-                    <th className="p-4 pl-6">Module / Type</th>
+                    <th className="p-4 pl-6">Module</th>
                     <th className="p-4">Date et Heure</th>
                     <th className="p-4 text-center">Statut</th>
                     <th className="p-4 pr-6 text-right">Actions</th>
@@ -802,8 +805,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
                   {filteredEvals.length > 0 ? filteredEvals.map(ev => (
                     <tr key={ev.id} className="hover:bg-bg-hover transition duration-150 group">
                       <td className="p-4 pl-6">
-                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{ev.type}</span>
-                        <h5 className="font-heading font-semibold text-text-main mt-1 m-0">{ev.moduleName}</h5>
+                        <h5 className="font-heading font-semibold text-text-main m-0">{ev.moduleName}</h5>
                       </td>
                       <td className="p-4 text-text-muted text-xs">
                         <span className="block font-medium">{ev.date}</span>
@@ -815,15 +817,11 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
                           onChange={e => updateEvalStatus(ev.id, e.target.value)}
                           className={`text-[10px] font-bold uppercase rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none transition
                             ${ev.status === 'Effectué' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                              ev.status === 'Planifié' ? 'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'  :
-                              ev.status === 'En cours' ? 'bg-amber-500/10   text-amber-600   border-amber-500/20'   :
-                                                         'bg-rose-500/10    text-rose-600    border-rose-500/20'    }
+                                                         'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'  }
                           `}
                         >
                           <option value="Planifié">Planifié</option>
-                          <option value="En cours">En cours</option>
                           <option value="Effectué">Effectué</option>
-                          <option value="Annulé">Annulé</option>
                         </select>
                       </td>
                       <td className="p-4 pr-6 text-right">
@@ -844,7 +842,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
 
         {innerTab === 'emploidutemps' && (
           <div className="bg-bg-main border border-border-main p-6 rounded-xl animate-fade-in">
-            <EmploiDuTempsView darkMode={darkMode} selectedYear="2026" timetables={timetables} setTimetables={setTimetables} filterClass={cls.name} filterSemester={selectedSemester} />
+            <EmploiDuTempsView darkMode={darkMode} selectedYear="2026" timetables={timetables} setTimetables={setTimetables} filterClass={cls.name} filterSemester={selectedSemester} onDataChange={loadData} />
           </div>
         )}
 
@@ -871,13 +869,11 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
             {semesterEvals.length > 0 && (() => {
               const evEffectue = semesterEvals.filter(e => e.status === 'Effectué').length;
               const evPlanifie = semesterEvals.filter(e => e.status === 'Planifié').length;
-              const evEnCours  = semesterEvals.filter(e => e.status === 'En cours').length;
-              const evAnnule   = semesterEvals.filter(e => e.status === 'Annulé').length;
               const tauxEval   = semesterEvals.length > 0 ? Math.round((evEffectue / semesterEvals.length) * 100) : 0;
               return (
                 <div className="bg-bg-main border border-border-main p-6 rounded-xl space-y-4">
                   <h4 className="font-heading font-bold text-base text-text-main">Progression des Évaluations</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
                       <p className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Effectuées</p>
                       <p className="text-xl font-extrabold text-emerald-500">{evEffectue}</p>
@@ -885,14 +881,6 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
                     <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3 text-center">
                       <p className="text-[10px] uppercase font-bold text-indigo-500 mb-1">Planifiées</p>
                       <p className="text-xl font-extrabold text-indigo-400">{evPlanifie}</p>
-                    </div>
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-center">
-                      <p className="text-[10px] uppercase font-bold text-amber-600 mb-1">En cours</p>
-                      <p className="text-xl font-extrabold text-amber-500">{evEnCours}</p>
-                    </div>
-                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-center">
-                      <p className="text-[10px] uppercase font-bold text-rose-500 mb-1">Annulées</p>
-                      <p className="text-xl font-extrabold text-rose-400">{evAnnule}</p>
                     </div>
                   </div>
                   <div>
@@ -1215,17 +1203,13 @@ const loadData = async () => {
       const mappedEvals = rawEvals.map(e => ({
         id: e.id,
         moduleName: e.modulename || e.moduleName || '',
-        type: e.type || 'Evaluation',
         date: e.eval_date ? String(e.eval_date).split('T')[0] : (e.date || ''),
         eval_date: e.eval_date ? String(e.eval_date).split('T')[0] : (e.date || ''),
         time: e.eval_time || e.time || '',
         classGroup: e.classgroup || e.classGroup || '',
-        room: e.room || '',
-        weight: e.weight || 100,
         status: e.status || 'Planifié',
         module_id: e.module_id,
         class_id: e.class_id,
-        room_id: e.room_id,
         academic_year_id: e.academic_year_id,
       }));
       setEvaluations(mappedEvals);
@@ -1321,7 +1305,7 @@ const loadData = async () => {
   const [modFormError, setModFormError] = useState('');
   const [expandedModuleId, setExpandedModuleId] = useState(null);
 
-  const [evalModal, setEvalModal] = useState({ open: false, mode: 'add', data: { moduleName: '', type: 'Evaluation', date: '', time: '', classGroup: '', status: 'Planifié' }, editId: null });
+  const [evalModal, setEvalModal] = useState({ open: false, mode: 'add', data: { moduleName: '', date: '', time: '', classGroup: '', status: 'Planifié' }, editId: null });
   const [evalFormError, setEvalFormError] = useState('');
 
   // Hook to toggle dark class on document element
@@ -1494,13 +1478,13 @@ const loadData = async () => {
   // Evaluation CRUD handlers
   const openAddEval = () => {
     setEvalFormError('');
-    setEvalModal({ open: true, mode: 'add', data: { moduleName: '', type: 'Evaluation', date: '', time: '08:00', classGroup: '', status: 'Planifié' }, editId: null });
+    setEvalModal({ open: true, mode: 'add', data: { moduleName: '', date: '', time: '08:00', classGroup: '', status: 'Planifié' }, editId: null });
   };
   const openEditEval = (ev) => {
     setEvalFormError('');
     setEvalModal({
       open: true, mode: 'edit',
-      data: { moduleName: ev.moduleName, type: ev.type, date: ev.eval_date || ev.date, time: ev.time || '', classGroup: ev.classGroup, status: ev.status },
+      data: { moduleName: ev.moduleName, date: ev.eval_date || ev.date, time: ev.time || '', classGroup: ev.classGroup, status: ev.status },
       editId: ev.id
     });
   };
@@ -1511,7 +1495,7 @@ const loadData = async () => {
     return items.find(item => (item.name || '').trim().toLowerCase() === normalizedName);
   };
   const saveEval = async () => {
-    const { moduleName, type, date, time, classGroup, status } = evalModal.data;
+    const { moduleName, date, time, classGroup, status } = evalModal.data;
     if (!moduleName.trim() || !classGroup.trim() || !date.trim()) {
       setEvalFormError('Nom du module, classe et date sont requis.');
       return;
@@ -1531,7 +1515,7 @@ const loadData = async () => {
 
     const payload = {
       module_id: modObj ? modObj.id : null,
-      type: type.trim() || 'Evaluation',
+      type: 'Evaluation',
       eval_date: date,
       eval_time: time.trim() || '08:00:00',
       class_id: classObj ? classObj.id : null,
@@ -1544,17 +1528,13 @@ const loadData = async () => {
     const mapEval = (e) => ({
       id: e.id,
       moduleName: e.modulename || e.moduleName || moduleName,
-      type: e.type || type,
       date: e.eval_date ? String(e.eval_date).split('T')[0] : date,
       eval_date: e.eval_date ? String(e.eval_date).split('T')[0] : date,
       time: e.eval_time || e.time || time,
       classGroup: e.classgroup || e.classGroup || classGroup,
-      room: e.room || '',
-      weight: e.weight || 100,
       status: e.status || status,
       module_id: e.module_id,
       class_id: e.class_id,
-      room_id: e.room_id,
       academic_year_id: e.academic_year_id,
     });
 
@@ -1633,8 +1613,7 @@ const loadData = async () => {
       if (ayObj && ev.academic_year_id && ev.academic_year_id !== ayObj.id) return false;
       const q = searchQuery.toLowerCase();
       return (ev.moduleName || '').toLowerCase().includes(q) ||
-        ((ev.classGroup || '').toLowerCase().includes(q)) ||
-        (ev.type || '').toLowerCase().includes(q);
+        ((ev.classGroup || '').toLowerCase().includes(q));
     });
   }, [searchQuery, evaluations, selectedYear, academicYears]);
 
@@ -1706,7 +1685,7 @@ const loadData = async () => {
                   setIsSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${currentTab === tab.id
-                  ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-600/20'
+                  ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-lg shadow-emerald-600/20'
                   : 'text-text-muted hover:text-text-main hover:bg-bg-hover'
                   }`}
               >
@@ -1781,15 +1760,10 @@ const loadData = async () => {
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
 
-            <button className="relative p-2 text-text-muted hover:text-text-main bg-bg-surface hover:bg-bg-hover border border-border-main rounded-xl transition-all shadow-sm">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-bg-main"></span>
-            </button>
-            <div className="h-8 w-px bg-border-main"></div>
+
             <div className="hidden sm:block text-right relative group">
               <div className="text-xs font-semibold text-text-main leading-none cursor-pointer group-hover:text-emerald-500 transition-colors py-2 flex items-center gap-1.5 justify-end">
                 Année {selectedYear}
-                <span className="text-[8px] transition-transform duration-200 group-hover:rotate-180">â–¼</span>
               </div>
               <div className="absolute right-0 top-full mt-0 bg-bg-surface border border-border-main rounded-xl shadow-xl shadow-emerald-500/10 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 w-32 py-1">
                 {availableYears.map((year) => (
@@ -1897,7 +1871,6 @@ const loadData = async () => {
                         <h5 className="font-heading font-bold text-sm text-text-main">{nextEvaluation.moduleName}</h5>
                         <div className="text-xs text-text-muted space-y-1">
                           <p>Groupe: {nextEvaluation.classGroup}</p>
-                          <p>Lieu: {nextEvaluation.room}</p>
                           <p>Date: {nextEvaluation.eval_date ? new Date(nextEvaluation.eval_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : nextEvaluation.date} ({(nextEvaluation.eval_time || nextEvaluation.time || '').substring(0, 5)})</p>
                         </div>
                       </div>
@@ -1926,7 +1899,7 @@ const loadData = async () => {
 
           {/* TAB 2: EMPLOI DU TEMPS */}
           {currentTab === 'emploidutemps' && (
-            <EmploiDuTempsView darkMode={darkMode} selectedYear={selectedYear} timetables={timetables} setTimetables={setTimetables} />
+            <EmploiDuTempsView darkMode={darkMode} selectedYear={selectedYear} timetables={timetables} setTimetables={setTimetables} onDataChange={loadData} />
           )}
 
           {/* TAB 3: CLASSES */}
@@ -1987,11 +1960,11 @@ const loadData = async () => {
                         <div className="mt-5 space-y-2.5 text-xs text-text-muted">
                           <div className="flex justify-between">
                             <span>Effectif :</span>
-                            <span className="font-bold text-text-main">{cls.studentCount} Étudiants</span>
+                            <span className="font-bold text-text-main">{cls.studentCount > 0 ? `${cls.studentCount} Étudiants` : 'Non défini'}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>Délégué :</span>
-                            <span className="font-medium text-text-main">{cls.representative}</span>
+                            <span className="font-medium text-text-main">{cls.representative || 'Non défini'}</span>
                           </div>
                         </div>
                       </div>
@@ -2069,7 +2042,7 @@ const loadData = async () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Effectif (nb étudiants) *</label>
+                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Effectif (nb étudiants)</label>
                         <input
                           type="number"
                           min="0"
@@ -2488,7 +2461,7 @@ const loadData = async () => {
                 <table className="w-full border-collapse text-left min-w-[600px]">
                   <thead>
                     <tr className="bg-bg-hover text-text-muted text-xs font-semibold uppercase tracking-wider border-b border-border-main">
-                      <th className="p-4 pl-6">Module / Type</th>
+                      <th className="p-4 pl-6">Module</th>
                       <th className="p-4">Classe</th>
                       <th className="p-4">Date et Heure</th>
                       <th className="p-4 text-center">Statut</th>
@@ -2500,8 +2473,7 @@ const loadData = async () => {
                       <tr key={ev.id} className="hover:bg-bg-hover transition duration-150 group">
                         <td className="p-4 pl-6">
                           <div>
-                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{ev.type}</span>
-                            <h5 className="font-heading font-semibold text-text-main mt-1 m-0">{ev.moduleName}</h5>
+                            <h5 className="font-heading font-semibold text-text-main m-0">{ev.moduleName}</h5>
                           </div>
                         </td>
                         <td className="p-4 font-semibold text-text-main">{ev.classGroup}</td>
@@ -2515,15 +2487,11 @@ const loadData = async () => {
                             onChange={e => updateEvalStatus(ev.id, e.target.value)}
                             className={`text-[10px] font-bold uppercase rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none transition
                               ${ev.status === 'Effectué'  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                                ev.status === 'Planifié'  ? 'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'  :
-                                ev.status === 'En cours'  ? 'bg-amber-500/10   text-amber-600   border-amber-500/20'   :
-                                                             'bg-rose-500/10    text-rose-600    border-rose-500/20'    }
+                                                             'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'  }
                             `}
                           >
                             <option value="Planifié">Planifié</option>
-                            <option value="En cours">En cours</option>
                             <option value="Effectué">Effectué</option>
-                            <option value="Annulé">Annulé</option>
                           </select>
                         </td>
                         <td className="p-4 pr-6">
@@ -2587,22 +2555,10 @@ const loadData = async () => {
                         </datalist>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Type</label>
-                        <select value={evalModal.data.type} onChange={e => handleEvalField('type', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition">
-                          <option value="Evaluation">Évaluation</option>
-                          <option value="Examen">Examen</option>
-                          <option value="Contrôle">Contrôle</option>
-                          <option value="TP noté">TP noté</option>
-                          <option value="Oral">Oral</option>
-                        </select>
-                      </div>
-                      <div>
                         <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Statut</label>
                         <select value={evalModal.data.status} onChange={e => handleEvalField('status', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition">
                           <option value="Planifié">Planifié</option>
-                          <option value="En cours">En cours</option>
                           <option value="Effectué">Effectué</option>
-                          <option value="Annulé">Annulé</option>
                         </select>
                       </div>
                       <div>
@@ -2709,7 +2665,7 @@ const loadData = async () => {
               <div className="bg-bg-surface border border-border-main shadow-sm dark:shadow-none p-6 rounded-2xl transition-colors duration-200">
                 <div className="mb-6">
                   <h4 className="font-heading font-semibold text-lg text-text-main m-0">Progression des Évaluations</h4>
-                  <p className="text-xs text-text-muted mt-2">Répartition des évaluations selon leur statut (Effectué / Planifié / En cours).</p>
+                  <p className="text-xs text-text-muted mt-2">Répartition des évaluations selon leur statut (Effectué / Planifié).</p>
                 </div>
 
                 {/* KPI cards */}

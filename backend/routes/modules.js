@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { recalcModuleProgress } from '../jobs/recalcModuleProgress.js';
 
 const router = Router();
 
@@ -67,6 +68,17 @@ router.put('/:id', async (req, res) => {
       WHERE m.id = $1
     `, [req.params.id]);
     res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// POST /api/modules/recalc-progress – recalcule la progression de tous les modules
+router.post('/recalc-progress', async (req, res) => {
+  try {
+    await recalcModuleProgress();
+    res.json({ success: true, message: 'Progression des modules recalculée.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erreur serveur.' });

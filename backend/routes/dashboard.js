@@ -85,27 +85,24 @@ router.get('/eval-stats', async (req, res) => {
     `);
 
     // Construction d'un objet normalisé
-    const statsMap = { 'Planifié': 0, 'Effectué': 0, 'En cours': 0 };
+    const statsMap = { 'Planifié': 0, 'Effectué': 0 };
     for (const r of rows) {
       statsMap[r.status] = parseInt(r.count);
     }
     const total = Object.values(statsMap).reduce((a, b) => a + b, 0);
     const effectue = statsMap['Effectué'] || 0;
     const planifie = statsMap['Planifié'] || 0;
-    const enCours  = statsMap['En cours']  || 0;
     const tauxRealisation = total > 0 ? Math.round((effectue / total) * 100) : 0;
 
     res.json({
       total,
       effectue,
       planifie,
-      enCours,
       tauxRealisation,
       // Format pour le graphique Recharts
       chart: [
         { name: 'Effectué',  value: effectue, color: '#10b981' },
         { name: 'Planifié',  value: planifie, color: '#6366f1' },
-        { name: 'En cours',  value: enCours,  color: '#f59e0b' },
       ].filter(d => d.value > 0),
     });
   } catch (err) {

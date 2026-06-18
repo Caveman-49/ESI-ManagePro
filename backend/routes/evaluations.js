@@ -77,7 +77,7 @@ router.put('/:id', async (req, res) => {
 router.patch('/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
-    const allowed = ['Planifié', 'En cours', 'Effectué', 'Annulé'];
+    const allowed = ['Planifié', 'Effectué'];
     if (!status || !allowed.includes(status)) {
       return res.status(400).json({ error: `Statut invalide. Valeurs acceptées : ${allowed.join(', ')}` });
     }

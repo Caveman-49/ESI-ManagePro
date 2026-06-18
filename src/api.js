@@ -53,6 +53,7 @@ const api = {
   createModule: (data) => request('/modules', { method: 'POST', body: JSON.stringify(data) }),
   updateModule: (id, data) => request(`/modules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteModule: (id) => request(`/modules/${id}`, { method: 'DELETE' }),
+  recalcModuleProgress: () => request('/modules/recalc-progress', { method: 'POST' }),
 
   // ── Evaluations ──
   getEvaluations: () => request('/evaluations'),

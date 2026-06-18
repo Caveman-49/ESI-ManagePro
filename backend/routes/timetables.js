@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { recalcModuleProgress } from '../jobs/recalcModuleProgress.js';
 
 const router = Router();
 
@@ -128,6 +129,8 @@ router.post('/', async (req, res) => {
     }
 
     await client.query('COMMIT');
+    // Recalculate module progress based on new timetable sessions
+    recalcModuleProgress();
     res.status(201).json({ id, period, start_date });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -198,6 +201,8 @@ router.put('/:id', async (req, res) => {
     }
 
     await client.query('COMMIT');
+    // Recalculate module progress after timetable update
+    recalcModuleProgress();
     res.json({ success: true });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -221,6 +226,8 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM timetables WHERE id = $1', [req.params.id]);
+    // Recalculate module progress after timetable deletion
+    recalcModuleProgress();
     res.json({ success: true });
   } catch (err) {
     console.error(err);
