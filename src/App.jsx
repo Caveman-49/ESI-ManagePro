@@ -42,7 +42,6 @@ import {
   Legend
 } from 'recharts';
 
-import { timeSlots, weekDays } from './mockData';
 import api from './api';
 
 // ----- Helpers for French dates -----
@@ -90,7 +89,10 @@ function makeEmptySchedules() {
 
 // --- Weekly Timetable Component ---------------------------------------
 function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, onDataChange }) {
-  const targetClasses = filterClass ? [filterClass] : TT_CLASSES;
+  const [ttFilterClass, setTtFilterClass] = useState('');
+  const targetClasses = filterClass
+    ? [filterClass]
+    : (ttFilterClass ? [ttFilterClass] : TT_CLASSES);
 
   // -- Real system date: Monday of current week --
   const todayMonday = getMondayOf(new Date());
@@ -377,16 +379,35 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
     <div className="space-y-6 animate-fade-in pb-12">
 
       {/* -- Page Header -- */}
-      <div className="flex justify-between items-center border-b border-border-main pb-4">
-        <div>
-          <h3 className="font-heading font-semibold text-xl text-text-main">Emplois du Temps</h3>
-          <p className="text-xs text-text-muted mt-0.5">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      <div className="space-y-3 border-b border-border-main pb-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-heading font-semibold text-xl text-text-main">Emplois du Temps</h3>
+            <p className="text-xs text-text-muted mt-0.5">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          </div>
+          <button onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2  bg-gradient-to-r from-emerald-600 to-green-600 hover:from-indigo-700 hover:to-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
+            {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {showForm ? 'Annuler' : 'Nouvel Emploi du Temps'}
+          </button>
         </div>
-        <button onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2  bg-gradient-to-r from-emerald-600 to-green-600 hover:from-indigo-700 hover:to-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
-          {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showForm ? 'Annuler' : 'Nouvel Emploi du Temps'}
-        </button>
+        {/* Filter by class */}
+        {!filterClass && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Filtrer par classe :</span>
+            {['', ...TT_CLASSES].map(cls => (
+              <button
+                key={cls || '__all__'}
+                onClick={() => setTtFilterClass(cls)}
+                className={`px-3 py-1 rounded-full text-[11px] font-semibold border transition-all ${ttFilterClass === cls
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  : 'bg-bg-surface text-text-muted border-border-main hover:border-emerald-500 hover:text-emerald-600'}`}
+              >
+                {cls || 'Toutes les classes'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* -- New Timetable Creation Form -- */}
@@ -1009,10 +1030,6 @@ const LoginPage = ({ onLogin }) => {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-xs text-text-muted border-t border-border-main pt-6">
-          <p>Identifiants par défaut :</p>
-          <p className="font-mono mt-1 text-text-main">admin@esi.dz / admin123</p>
-        </div>
       </div>
     </div>
   );
@@ -1308,6 +1325,14 @@ const loadData = async () => {
   const [evalModal, setEvalModal] = useState({ open: false, mode: 'add', data: { moduleName: '', date: '', time: '', classGroup: '', status: 'Planifié' }, editId: null });
   const [evalFormError, setEvalFormError] = useState('');
 
+  // Filter states for Modules tab
+  const [modFilterClass, setModFilterClass] = useState('');
+  const [modFilterSemester, setModFilterSemester] = useState('');
+
+  // Filter states for Evaluations tab
+  const [evalFilterClass, setEvalFilterClass] = useState('');
+  const [evalFilterStatus, setEvalFilterStatus] = useState('');
+
   // Hook to toggle dark class on document element
   useEffect(() => {
     if (darkMode) {
@@ -1600,22 +1625,29 @@ const loadData = async () => {
   }, [searchQuery, professors]);
 
   const filteredModules = useMemo(() => {
-    return modules.filter(mod =>
-      mod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (mod.className && mod.className.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (mod.teacher && mod.teacher.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  }, [searchQuery, modules]);
+    return modules.filter(mod => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = mod.name.toLowerCase().includes(q) ||
+        (mod.className && mod.className.toLowerCase().includes(q)) ||
+        (mod.teacher && mod.teacher.toLowerCase().includes(q));
+      const matchesClass = !modFilterClass || mod.className === modFilterClass;
+      const matchesSemester = !modFilterSemester || String(mod.semester) === String(modFilterSemester);
+      return matchesSearch && matchesClass && matchesSemester;
+    });
+  }, [searchQuery, modules, modFilterClass, modFilterSemester]);
 
   const filteredEvaluations = useMemo(() => {
     const ayObj = academicYears.find(ay => ay.label === selectedYear);
     return evaluations.filter(ev => {
       if (ayObj && ev.academic_year_id && ev.academic_year_id !== ayObj.id) return false;
       const q = searchQuery.toLowerCase();
-      return (ev.moduleName || '').toLowerCase().includes(q) ||
+      const matchesSearch = (ev.moduleName || '').toLowerCase().includes(q) ||
         ((ev.classGroup || '').toLowerCase().includes(q));
+      const matchesClass = !evalFilterClass || ev.classGroup === evalFilterClass;
+      const matchesStatus = !evalFilterStatus || ev.status === evalFilterStatus;
+      return matchesSearch && matchesClass && matchesStatus;
     });
-  }, [searchQuery, evaluations, selectedYear, academicYears]);
+  }, [searchQuery, evaluations, selectedYear, academicYears, evalFilterClass, evalFilterStatus]);
 
   const nextEvaluation = useMemo(() => {
     const planned = evaluations.filter(e => e.status === 'Planifié');
@@ -2256,24 +2288,63 @@ const loadData = async () => {
           {currentTab === 'modules' && (
             <div className="space-y-6">
               {/* Header Controls */}
-              <div className="flex justify-between items-center border-b border-border-main pb-4">
-                <div className="relative max-w-sm w-full">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 text-text-muted" />
-                  <input
-                    type="text"
-                    placeholder="Filtrer par module, classe ou enseignant..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-bg-surface border border-border-main rounded-xl text-xs placeholder-slate-400 text-text-main focus:outline-none focus:border-emerald-500"
-                  />
+              <div className="space-y-3 border-b border-border-main pb-4">
+                <div className="flex justify-between items-center">
+                  <div className="relative max-w-sm w-full">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 text-text-muted" />
+                    <input
+                      type="text"
+                      placeholder="Filtrer par module, classe ou enseignant..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-bg-surface border border-border-main rounded-xl text-xs placeholder-slate-400 text-text-main focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <button
+                    onClick={openAddMod}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition shadow-sm shadow-emerald-500/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Ajouter un module
+                  </button>
                 </div>
-                <button
-                  onClick={openAddMod}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition shadow-sm shadow-emerald-500/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  Ajouter un module
-                </button>
+                {/* Filter Pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Filtres :</span>
+                  {/* Class filter */}
+                  {['', ...Array.from(new Set(modules.map(m => m.className).filter(Boolean))).sort()].map(cls => (
+                    <button
+                      key={cls || '__all__'}
+                      onClick={() => setModFilterClass(cls)}
+                      className={`px-3 py-1 rounded-full text-[11px] font-semibold border transition-all ${modFilterClass === cls
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-bg-surface text-text-muted border-border-main hover:border-emerald-500 hover:text-emerald-600'}`}
+                    >
+                      {cls || 'Toutes les classes'}
+                    </button>
+                  ))}
+                  <span className="w-px h-4 bg-border-main mx-1"></span>
+                  {/* Semester filter */}
+                  {['', ...Array.from(new Set(modules.map(m => m.semester).filter(Boolean))).sort()].map(sem => (
+                    <button
+                      key={sem || '__allsem__'}
+                      onClick={() => setModFilterSemester(String(sem))}
+                      className={`px-3 py-1 rounded-full text-[11px] font-semibold border transition-all ${modFilterSemester === String(sem)
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-bg-surface text-text-muted border-border-main hover:border-indigo-500 hover:text-indigo-600'}`}
+                    >
+                      {sem ? `Sem. ${sem}` : 'Tous les semestres'}
+                    </button>
+                  ))}
+                  {(modFilterClass || modFilterSemester) && (
+                    <button
+                      onClick={() => { setModFilterClass(''); setModFilterSemester(''); }}
+                      className="ml-auto text-[10px] font-semibold text-rose-500 hover:text-rose-700 transition flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" /> Réinitialiser
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Modules List View (Accordion) */}
@@ -2436,24 +2507,69 @@ const loadData = async () => {
           {currentTab === 'evaluations' && (
             <div className="space-y-6">
               {/* Header Controls */}
-              <div className="flex justify-between items-center border-b border-border-main pb-4">
-                <div className="relative max-w-sm w-full">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 text-text-muted" />
-                  <input
-                    type="text"
-                    placeholder="Filtrer par module ou classe..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-bg-surface border border-border-main rounded-xl text-xs placeholder-slate-400 text-text-main focus:outline-none focus:border-emerald-500"
-                  />
+              <div className="space-y-3 border-b border-border-main pb-4">
+                <div className="flex justify-between items-center">
+                  <div className="relative max-w-sm w-full">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 text-text-muted" />
+                    <input
+                      type="text"
+                      placeholder="Filtrer par module ou classe..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-bg-surface border border-border-main rounded-xl text-xs placeholder-slate-400 text-text-main focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <button
+                    onClick={openAddEval}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition shadow-sm shadow-emerald-500/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Ajouter une évaluation
+                  </button>
                 </div>
-                <button
-                  onClick={openAddEval}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition shadow-sm shadow-emerald-500/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  Ajouter une évaluation
-                </button>
+                {/* Filter Pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Filtres :</span>
+                  {/* Class filter */}
+                  {['', ...Array.from(new Set(evaluations.map(e => e.classGroup).filter(Boolean))).sort()].map(cls => (
+                    <button
+                      key={cls || '__all__'}
+                      onClick={() => setEvalFilterClass(cls)}
+                      className={`px-3 py-1 rounded-full text-[11px] font-semibold border transition-all ${evalFilterClass === cls
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-bg-surface text-text-muted border-border-main hover:border-emerald-500 hover:text-emerald-600'}`}
+                    >
+                      {cls || 'Toutes les classes'}
+                    </button>
+                  ))}
+                  <span className="w-px h-4 bg-border-main mx-1"></span>
+                  {/* Status filter */}
+                  {[
+                    { value: '', label: 'Tous les statuts' },
+                    { value: 'Planifié', label: 'Planifié' },
+                    { value: 'Effectué', label: 'Effectué' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value || '__allst__'}
+                      onClick={() => setEvalFilterStatus(opt.value)}
+                      className={`px-3 py-1 rounded-full text-[11px] font-semibold border transition-all ${evalFilterStatus === opt.value
+                        ? opt.value === 'Effectué' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : opt.value === 'Planifié' ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-slate-600 text-white border-slate-600 shadow-sm'
+                        : 'bg-bg-surface text-text-muted border-border-main hover:border-emerald-500 hover:text-emerald-600'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  {(evalFilterClass || evalFilterStatus) && (
+                    <button
+                      onClick={() => { setEvalFilterClass(''); setEvalFilterStatus(''); }}
+                      className="ml-auto text-[10px] font-semibold text-rose-500 hover:text-rose-700 transition flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" /> Réinitialiser
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Evaluations Table */}

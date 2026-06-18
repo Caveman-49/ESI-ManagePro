@@ -1,0 +1,25 @@
+# render.yaml — Configuration Render pour ESIManage Pro
+
+services:
+  # Web Service unique (backend + frontend statique)
+  - type: web
+    name: esimanage-pro
+    env: node
+    region: frankfurt
+    plan: free
+
+    # Racine du dépôt
+    rootDir: .
+
+    # Commandes de build et démarrage
+    buildCommand: npm install && npm run build && cd backend && npm install
+    startCommand: npm start
+
+    # Variables d'environnement
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false  # Sera définie manuellement dans le dashboard Render

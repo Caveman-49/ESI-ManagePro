@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import crypto from 'crypto';
 
 const router = Router();
+
+// Simple hash function for demonstration (in production, use bcrypt)
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -11,11 +17,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email et mot de passe requis.' });
     }
 
-    // 1. PostgreSQL utilise $1, $2 au lieu de ?
-    // 2. pool.query renvoie un objet avec la propriété .rows
+    // Hash the password before comparing with database
+    const hashedPassword = hashPassword(password);
+
+    // PostgreSQL utilise $1, $2 au lieu de ?
+    // pool.query renvoie un objet avec la propriété .rows
     const { rows } = await pool.query(
       'SELECT id, name, email, role FROM users WHERE email = $1 AND password_hash = $2',
-      [email, password]
+      [email, hashedPassword]
     );
 
     if (rows.length === 0) {

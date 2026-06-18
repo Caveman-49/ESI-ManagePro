@@ -1,5 +1,7 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 import authRoutes from './routes/auth.js';
@@ -16,6 +18,9 @@ import { recalcModuleProgress } from './jobs/recalcModuleProgress.js';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -23,7 +28,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// ── Routes ──
+// ── API Routes ──
 app.use('/api/auth', authRoutes);
 app.use('/api/academic-years', academicYearsRoutes);
 app.use('/api/classes', classesRoutes);
@@ -39,9 +44,18 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── Serve Frontend Static Files (Production) ──
+const distPath = path.resolve(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+
+// Catch-all: serve index.html for any non-API route (SPA support)
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
 // ── Start ──
 app.listen(PORT, () => {
-  console.log(`✅ ESIManage Pro API running on http://localhost:${PORT}`);
+  console.log('✅ ESIManage Pro API running on http://localhost:' + PORT);
   // Démarre le job de mise à jour automatique des statuts d'évaluations
   startEvalAutoUpdateJob();
   // Recalcul initial de la progression des modules
