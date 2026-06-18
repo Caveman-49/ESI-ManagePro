@@ -3,13 +3,14 @@ import pool from '../db.js';
 
 const router = Router();
 
-// GET /api/timetables – returns all timetables with nested sessions and notes
+// GET /api/timetables – retourne tous les emplois du temps avec sessions et notes imbriquées
 router.get('/', async (req, res) => {
   try {
-    const [timetables] = await pool.query('SELECT * FROM timetables ORDER BY created_at DESC');
+    // PostgreSQL : Utilisation de la déstructuration { rows } au lieu de [rows]
+    const { rows: timetables } = await pool.query('SELECT * FROM timetables ORDER BY created_at DESC');
     
     for (const tt of timetables) {
-      // Build days array from start_date (Monday → Saturday)
+      // Construction du tableau de jours à partir de start_date (Lundi → Samedi)
       const FR_DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
       const FR_MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
       
@@ -22,14 +23,16 @@ router.get('/', async (req, res) => {
         return `${FR_DAYS[d.getDay()]} ${d.getDate()} ${FR_MONTHS[d.getMonth()]}`;
       });
 
-      // Build schedules object: { className: { dayIdx: { slotIdx: session } } }
-      const [sessions] = await pool.query(
+      // Schedules object: { className: { dayIdx: { slotIdx: session } } }
+      // Remplacement de ? par $1
+      const { rows: sessions } = await pool.query(
         `SELECT ts.*, c.name AS class_name
          FROM timetable_sessions ts
          JOIN classes c ON ts.class_id = c.id
-         WHERE ts.timetable_id = ?`,
+         WHERE ts.timetable_id = $1`,
         [tt.id]
       );
+      
       const schedules = {};
       for (const s of sessions) {
         if (!schedules[s.class_name]) schedules[s.class_name] = {};
@@ -38,17 +41,18 @@ router.get('/', async (req, res) => {
           subject: s.subject,
           type: s.type,
           teacher: s.teacher,
-          room: s.room
+          room: s.room,
+          is_forced: s.is_forced // Ajout du flag pour le suivi
         };
       }
       tt.schedules = schedules;
 
-      // Build notes object: { className: noteText }
-      const [notes] = await pool.query(
+      // Notes object: { className: noteText }
+      const { rows: notes } = await pool.query(
         `SELECT tn.note_text, c.name AS class_name
          FROM timetable_notes tn
          JOIN classes c ON tn.class_id = c.id
-         WHERE tn.timetable_id = ?`,
+         WHERE tn.timetable_id = $1`,
         [tt.id]
       );
       tt.notes = {};
@@ -56,7 +60,7 @@ router.get('/', async (req, res) => {
         tt.notes[n.class_name] = n.note_text;
       }
 
-      // Format dates for frontend compatibility
+      // Formatage des dates pour la compatibilité frontend
       tt.startDate = base.toISOString().split('T')[0];
       tt.createdAt = new Date(tt.created_at).toLocaleDateString('fr-FR');
     }
@@ -68,25 +72,25 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/timetables – create a full timetable with sessions and notes
+// POST /api/timetables – crée un emploi du temps complet avec ses sessions et ses notes
 router.post('/', async (req, res) => {
-  const conn = await pool.getConnection();
+  // Gestion du client de connexion PostgreSQL pour la transaction
+  const client = await pool.connect();
   try {
-    await conn.beginTransaction();
+    await client.query('BEGIN');
 
     const { period, start_date, schedules, notes, academic_year_id } = req.body;
     const id = 'TT-' + Date.now();
 
-    // Insert timetable metadata
-    await conn.query(
-      'INSERT INTO timetables (id, period, start_date, academic_year_id) VALUES (?, ?, ?, ?)',
+    // Insertion des métadonnées
+    await client.query(
+      'INSERT INTO timetables (id, period, start_date, academic_year_id) VALUES ($1, $2, $3, $4)',
       [id, period, start_date, academic_year_id || null]
     );
 
-    // Insert sessions
     if (schedules) {
-      // Resolve class names → class IDs
-      const [allClasses] = await conn.query('SELECT id, name FROM classes');
+      // Résolution des noms de classes → IDs de classes
+      const { rows: allClasses } = await client.query('SELECT id, name FROM classes');
       const classMap = {};
       for (const c of allClasses) classMap[c.name] = c.id;
 
@@ -96,102 +100,127 @@ router.post('/', async (req, res) => {
         for (const [dayIdx, slots] of Object.entries(days)) {
           for (const [slotIdx, session] of Object.entries(slots)) {
             if (!session || !session.subject) continue;
-            await conn.query(
-              `INSERT INTO timetable_sessions (timetable_id, class_id, day_idx, slot_idx, subject, type, teacher, room)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [id, classId, parseInt(dayIdx), parseInt(slotIdx), session.subject, session.type || 'Cours', session.teacher || '', session.room || '']
+            
+            // On récupère is_forced s'il est envoyé par le frontend (cas forcé)
+            const isForced = session.is_forced || false;
+
+            await client.query(
+              `INSERT INTO timetable_sessions (timetable_id, class_id, day_idx, slot_idx, subject, type, teacher, room, is_forced)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              [id, classId, parseInt(dayIdx), parseInt(slotIdx), session.subject, session.type || 'Cours', session.teacher || '', session.room || '', isForced]
             );
           }
         }
       }
 
-      // Insert notes
+      // Insertion des notes
       if (notes) {
         for (const [className, noteText] of Object.entries(notes)) {
           if (!noteText) continue;
           const classId = classMap[className];
           if (!classId) continue;
-          await conn.query(
-            'INSERT INTO timetable_notes (timetable_id, class_id, note_text) VALUES (?, ?, ?)',
+          await client.query(
+            'INSERT INTO timetable_notes (timetable_id, class_id, note_text) VALUES ($1, $2, $3)',
             [id, classId, noteText]
           );
         }
       }
     }
 
-    await conn.commit();
+    await client.query('COMMIT');
     res.status(201).json({ id, period, start_date });
   } catch (err) {
-    await conn.rollback();
+    await client.query('ROLLBACK');
     console.error(err);
+
+    // Interception de l'erreur levée par le Trigger PostgreSQL (PREREQ_NOT_MET)
+    if (err.message && err.message.includes('PREREQ_NOT_MET')) {
+      return res.status(409).json({ 
+        error: 'PREREQ_NOT_MET', 
+        message: err.message 
+      });
+    }
+
     res.status(500).json({ error: 'Erreur serveur.' });
   } finally {
-    conn.release();
+    client.release();
   }
 });
 
-// PUT /api/timetables/:id – update sessions and notes
+// PUT /api/timetables/:id – met à jour les sessions et les notes
 router.put('/:id', async (req, res) => {
-  const conn = await pool.getConnection();
+  const client = await pool.connect();
   try {
-    await conn.beginTransaction();
+    await client.query('BEGIN');
 
     const { schedules, notes } = req.body;
     const ttId = req.params.id;
 
-    // Resolve class names → class IDs
-    const [allClasses] = await conn.query('SELECT id, name FROM classes');
+    // Résolution des noms de classes → IDs de classes
+    const { rows: allClasses } = await client.query('SELECT id, name FROM classes');
     const classMap = {};
     for (const c of allClasses) classMap[c.name] = c.id;
 
-    // Replace all sessions
+    // Remplacement de toutes les sessions
     if (schedules) {
-      await conn.query('DELETE FROM timetable_sessions WHERE timetable_id = ?', [ttId]);
+      await client.query('DELETE FROM timetable_sessions WHERE timetable_id = $1', [ttId]);
       for (const [className, days] of Object.entries(schedules)) {
         const classId = classMap[className];
         if (!classId) continue;
         for (const [dayIdx, slots] of Object.entries(days)) {
           for (const [slotIdx, session] of Object.entries(slots)) {
             if (!session || !session.subject) continue;
-            await conn.query(
-              `INSERT INTO timetable_sessions (timetable_id, class_id, day_idx, slot_idx, subject, type, teacher, room)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [ttId, classId, parseInt(dayIdx), parseInt(slotIdx), session.subject, session.type || 'Cours', session.teacher || '', session.room || '']
+            
+            const isForced = session.is_forced || false;
+
+            await client.query(
+              `INSERT INTO timetable_sessions (timetable_id, class_id, day_idx, slot_idx, subject, type, teacher, room, is_forced)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              [ttId, classId, parseInt(dayIdx), parseInt(slotIdx), session.subject, session.type || 'Cours', session.teacher || '', session.room || '', isForced]
             );
           }
         }
       }
     }
 
-    // Replace all notes
+    // Remplacement de toutes les notes
     if (notes) {
-      await conn.query('DELETE FROM timetable_notes WHERE timetable_id = ?', [ttId]);
+      await client.query('DELETE FROM timetable_notes WHERE timetable_id = $1', [ttId]);
       for (const [className, noteText] of Object.entries(notes)) {
         if (!noteText) continue;
         const classId = classMap[className];
         if (!classId) continue;
-        await conn.query(
-          'INSERT INTO timetable_notes (timetable_id, class_id, note_text) VALUES (?, ?, ?)',
+        await client.query(
+          'INSERT INTO timetable_notes (timetable_id, class_id, note_text) VALUES ($1, $2, $3)',
           [ttId, classId, noteText]
         );
       }
     }
 
-    await conn.commit();
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
-    await conn.rollback();
+    await client.query('ROLLBACK');
     console.error(err);
+
+    // Même interception de l'erreur en cas de modification
+    if (err.message && err.message.includes('PREREQ_NOT_MET')) {
+      return res.status(409).json({ 
+        error: 'PREREQ_NOT_MET', 
+        message: err.message 
+      });
+    }
+
     res.status(500).json({ error: 'Erreur serveur.' });
   } finally {
-    conn.release();
+    client.release();
   }
 });
 
 // DELETE /api/timetables/:id
 router.delete('/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM timetables WHERE id = ?', [req.params.id]);
+    await pool.query('DELETE FROM timetables WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);

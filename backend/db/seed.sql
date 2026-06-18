@@ -14,13 +14,6 @@ INSERT INTO academic_years (id, label, is_current) VALUES
 INSERT INTO users (id, name, email, password_hash, role) VALUES
 ('USR-01', 'Administrateur ESI', 'admin@esi.dz', 'admin123', 'Admin');
 
--- ─── Professeurs ────────────────────────────────────────────
-INSERT INTO professors (id, name, department, email, availability, avatar_bg) VALUES
-('PRF-01', 'Dr. Abdelkrim Rahmouni', 'Systèmes d''Information', 'a.rahmouni@esi.dz', 'En cours', 'bg-indigo-600'),
-('PRF-02', 'Mme. Souad Khelil', 'Génie Logiciel', 's.khelil@esi.dz', 'Disponible', 'bg-teal-600'),
-('PRF-03', 'Dr. Feriel Ziane', 'Génie Logiciel', 'f.ziane@esi.dz', 'Disponible', 'bg-violet-600'),
-('PRF-04', 'Prof. Malik Bensaid', 'Systèmes et Réseaux', 'm.bensaid@esi.dz', 'Absent', 'bg-amber-600'),
-('PRF-05', 'Prof. Lydia Ould', 'Intelligence Artificielle', 'l.ould@esi.dz', 'Disponible', 'bg-pink-600');
 
 -- ─── Classes ────────────────────────────────────────────────
 INSERT INTO classes (id, name, specialty, level, student_count, head_teacher_id, representative, schedule_progress) VALUES

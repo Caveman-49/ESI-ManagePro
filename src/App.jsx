@@ -1,20 +1,20 @@
 import { useState, useMemo, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { 
-  LayoutDashboard, 
-  Users, 
-  GraduationCap, 
-  MapPin, 
-  Layers, 
-  ClipboardCheck, 
+import {
+  LayoutDashboard,
+  Users,
+  GraduationCap,
+  MapPin,
+  Layers,
+  ClipboardCheck,
   BarChart3,
-  Search, 
-  Plus, 
-  Calendar, 
-  Bell, 
-  LogOut, 
-  Filter, 
+  Search,
+  Plus,
+  Calendar,
+  Bell,
+  LogOut,
+  Filter,
   ArrowUpRight,
   ShieldAlert,
   Sliders,
@@ -28,25 +28,26 @@ import {
   UserCog,
   Menu
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  BarChart, 
-  Bar, 
-  Cell, 
-  CartesianGrid 
+import {
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+  Cell,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Legend
 } from 'recharts';
 
 import { timeSlots, weekDays } from './mockData';
 import api from './api';
 
-// ─── Helpers for French dates ───────────────────────────────────────
-const FR_DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-const FR_MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+// ----- Helpers for French dates -----
+const FR_DAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+const FR_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
 function getMondayOf(d) {
   const dt = new Date(d);
@@ -87,26 +88,26 @@ function makeEmptySchedules() {
   return s;
 }
 
-// ─── Weekly Timetable Component ───────────────────────────────────────
+// --- Weekly Timetable Component ---------------------------------------
 function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables }) {
   const targetClasses = filterClass ? [filterClass] : TT_CLASSES;
 
-  // ── Real system date: Monday of current week ──
+  // -- Real system date: Monday of current week --
   const todayMonday = getMondayOf(new Date());
   const [startDateStr, setStartDateStr] = useState(toInputDate(todayMonday));
   const weekDays = buildWeekDays(startDateStr);
   const periodLabel = buildPeriodLabel(startDateStr);
 
-  // ── Saved timetables (history) ──
+  // -- Saved timetables (history) --
   const savedTimetables = timetables || [];
   const [expandedId, setExpandedId] = useState(null);
 
-  // ── New timetable creation panel ──
+  // -- New timetable creation panel --
   const [showForm, setShowForm] = useState(false);
   const [newSchedules, setNewSchedules] = useState(makeEmptySchedules);
   const [newNotes, setNewNotes] = useState({});
 
-  // ── Session modal (shared for new + saved) ──
+  // -- Session modal (shared for new + saved) --
   const [sessionModal, setSessionModal] = useState({ open: false, mode: 'new', ttId: null, cls: null, dayIdx: null, slotIdx: null, data: { subject: '', type: 'Cours', teacher: '', room: '' } });
 
   const openSessionModal = (mode, ttId, cls, dayIdx, slotIdx, existing) => {
@@ -131,7 +132,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
       if (!updatedSchedules[cls]) updatedSchedules[cls] = {};
       if (!updatedSchedules[cls][dayIdx]) updatedSchedules[cls][dayIdx] = {};
       updatedSchedules[cls][dayIdx][slotIdx] = { ...data };
-      
+
       try {
         const updated = await api.updateTimetable(ttId, {
           ...tt,
@@ -159,7 +160,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
       if (!tt) return;
       const updatedSchedules = JSON.parse(JSON.stringify(tt.schedules));
       if (updatedSchedules[cls]?.[dayIdx]) updatedSchedules[cls][dayIdx][slotIdx] = null;
-      
+
       try {
         const updated = await api.updateTimetable(ttId, {
           ...tt,
@@ -173,7 +174,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
     }
   };
 
-  // ── Save new timetable to history ──
+  // -- Save new timetable to history --
   const handleSaveTimetable = async () => {
     const newTT = {
       period: periodLabel,
@@ -194,32 +195,32 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
     }
   };
 
-  // ── Shared PDF page renderer ──
+  // -- Shared PDF page renderer --
   const drawTimetablePage = (pdf, tt, cls, logoImg) => {
     const pw = pdf.internal.pageSize.getWidth();
     const ph = pdf.internal.pageSize.getHeight();
 
-    const blueLight   = [156, 194, 229];
+    const blueLight = [156, 194, 229];
     const blueLighter = [221, 235, 247];
     const white = [255, 255, 255];
     const black = [0, 0, 0];
-    const red   = [192, 0, 0];
-    const gold  = [255, 200, 0];
+    const red = [192, 0, 0];
+    const gold = [255, 200, 0];
 
-    // ── ESI Logo ──
+    // -- ESI Logo --
     if (logoImg) {
       const logoW = 16; const logoH = 16;
       pdf.addImage(logoImg, 'JPEG', pw / 2 - logoW / 2, 6, logoW, logoH);
     }
 
-    // ── Header ──
+    // -- Header --
     pdf.setFontSize(10); pdf.setFont(undefined, 'bold');
     pdf.text('Université Nazi BONI', 12, 10, { align: 'left' });
     pdf.text('École Supérieure d\'Informatique', 12, 16, { align: 'left' });
     pdf.text('Burkina Faso', pw - 12, 10, { align: 'right' });
     pdf.text('La Patrie ou la Mort, nous Vaincrons', pw - 12, 16, { align: 'right' });
 
-    // ── Title ──
+    // -- Title --
     pdf.setFontSize(12);
     pdf.text(`Licence en informatique : ${cls} – 2025-2026`, pw / 2, 30, { align: 'center' });
     pdf.text(`Emploi du temps de la ${tt.period}`, pw / 2, 37, { align: 'center' });
@@ -227,7 +228,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
     pdf.text('Les cours se dérouleront au bloc pédagogique. Le chef de classe est prié de s\'assurer de la disponibilité du vidéoprojecteur.', pw / 2, 43, { align: 'center' });
     pdf.setFont(undefined, 'normal');
 
-    // ── Table layout ──
+    // -- Table layout --
     const tableTop = 48;
     const rowH = (ph - tableTop - 25) / 7; // 6 days + header
     const dayColW = 35;
@@ -236,7 +237,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
 
     // Draw header row
     pdf.setFillColor(...white); pdf.setTextColor(...black);
-    pdf.setDrawColor(0,0,0); pdf.setLineWidth(0.3);
+    pdf.setDrawColor(0, 0, 0); pdf.setLineWidth(0.3);
     pdf.rect(tableLeft, tableTop, dayColW, rowH, 'FD');
     PDF_SLOTS.forEach((slot, si) => {
       const x = tableLeft + dayColW + si * slotColW;
@@ -285,7 +286,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
       });
     });
 
-    // ── Footer ──
+    // -- Footer --
     const note = tt.notes?.[cls];
     if (note) {
       pdf.setFontSize(8); pdf.setFont(undefined, 'bold'); pdf.setTextColor(...red);
@@ -309,15 +310,15 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
     img.src = '/logo-esi.jpg';
   });
 
-  // ── Download single class PDF ──
+  // -- Download single class PDF --
   const handleDownloadPDF = async (tt, cls) => {
     const logoImg = await loadLogo();
     const pdf = new jsPDF('l', 'mm', 'a4');
     drawTimetablePage(pdf, tt, cls, logoImg);
-    pdf.save(`EDT_${cls.replace(/\s+/g,'_')}_${tt.startDate}.pdf`);
+    pdf.save(`EDT_${cls.replace(/\s+/g, '_')}_${tt.startDate}.pdf`);
   };
 
-  // ── Download all classes in one PDF (multi-page) ──
+  // -- Download all classes in one PDF (multi-page) --
   const handleDownloadAllPDF = async (tt) => {
     const logoImg = await loadLogo();
     const pdf = new jsPDF('l', 'mm', 'a4');
@@ -328,7 +329,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
     pdf.save(`EDT_GLOBAL_${tt.startDate}.pdf`);
   };
 
-  // ── Reusable interactive grid ──
+  // -- Reusable interactive grid --
   const TimetableGrid = ({ cls, days: gridDays, schedules, mode, ttId }) => (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse border border-black text-xs text-center" style={{ minWidth: 620 }}>
@@ -372,11 +373,11 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
   return (
     <div className="space-y-6 animate-fade-in pb-12">
 
-      {/* ── Page Header ── */}
+      {/* -- Page Header -- */}
       <div className="flex justify-between items-center border-b border-border-main pb-4">
         <div>
           <h3 className="font-heading font-semibold text-xl text-text-main">Emplois du Temps</h3>
-          <p className="text-xs text-text-muted mt-0.5">{new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</p>
+          <p className="text-xs text-text-muted mt-0.5">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
@@ -385,7 +386,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
         </button>
       </div>
 
-      {/* ── New Timetable Creation Form ── */}
+      {/* -- New Timetable Creation Form -- */}
       {showForm && (
         <div className="bg-bg-surface border border-border-main rounded-2xl p-6 space-y-5">
           <div className="flex flex-wrap items-center gap-4">
@@ -395,7 +396,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
                 className="px-4 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm font-semibold text-text-main" />
             </div>
             <div className="flex-1 min-w-[200px] bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl px-4 py-2.5">
-              <p className="text-sm font-bold text-indigo-800 dark:text-indigo-300">📅 {periodLabel}</p>
+              <p className="text-sm font-bold text-indigo-800 dark:text-indigo-300">ðŸ“… {periodLabel}</p>
               <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">{weekDays.join(' · ')}</p>
             </div>
           </div>
@@ -409,7 +410,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
               <div className="p-3">
                 <TimetableGrid cls={cls} days={weekDays} schedules={newSchedules} mode="new" ttId={null} />
                 <div className="mt-3">
-                  <input type="text" value={newNotes[cls] || ''} onChange={e => setNewNotes(p => ({...p, [cls]: e.target.value}))} placeholder="Ajouter une note (ex: Changement de salle, absence...)" className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 bg-gray-50" />
+                  <input type="text" value={newNotes[cls] || ''} onChange={e => setNewNotes(p => ({ ...p, [cls]: e.target.value }))} placeholder="Ajouter une note (ex: Changement de salle, absence...)" className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 bg-gray-50" />
                 </div>
               </div>
             </div>
@@ -424,7 +425,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
         </div>
       )}
 
-      {/* ── Saved Timetables List ── */}
+      {/* -- Saved Timetables List -- */}
       <div className="space-y-3">
         <h4 className="font-heading font-semibold text-sm text-text-muted uppercase tracking-wide">
           Emplois du temps enregistrés{savedTimetables.length > 0 && ` (${savedTimetables.length})`}
@@ -434,7 +435,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
           <div className="text-center py-14 border-2 border-dashed border-border-main rounded-2xl">
             <Calendar className="w-10 h-10 text-text-muted mx-auto mb-3 opacity-40" />
             <p className="text-text-muted text-sm font-semibold">Aucun emploi du temps enregistré.</p>
-            <p className="text-text-muted text-xs mt-1">Cliquez sur «&nbsp;Nouvel Emploi du Temps&nbsp;» pour commencer.</p>
+            <p className="text-text-muted text-xs mt-1">Cliquez sur « Nouvel Emploi du Temps » pour commencer.</p>
           </div>
         )}
 
@@ -462,7 +463,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
                 <button onClick={e => { e.stopPropagation(); handleDownloadAllPDF(tt); }}
                   title="Télécharger tout (Global)"
                   className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-600 hover:text-white rounded-lg transition shadow-sm">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 </button>
                 <button onClick={async (e) => {
                   e.stopPropagation();
@@ -491,11 +492,11 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
               <div className="border-t border-border-main p-5 space-y-5 bg-bg-main">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <p className="text-xs text-text-muted italic flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     Cliquez sur une case pour modifier un cours. Téléchargez le PDF par classe ou le fichier global.
                   </p>
                   <button onClick={() => handleDownloadAllPDF(tt)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold rounded-xl transition shadow-md whitespace-nowrap">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Télécharger tout (Global)
                   </button>
                 </div>
@@ -505,7 +506,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
                       <h5 className="font-bold text-sm">{cls}</h5>
                       <button onClick={() => handleDownloadPDF(tt, cls)}
                         className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         Télécharger PDF
                       </button>
                     </div>
@@ -546,7 +547,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
         ))}
       </div>
 
-      {/* ── Session Modal ── */}
+      {/* -- Session Modal -- */}
       {sessionModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
           <div className="bg-bg-surface border border-border-main rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-fade-in">
@@ -559,7 +560,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
                   {sessionModal.cls} — {(sessionModal.mode === 'new' ? weekDays : savedTimetables.find(t => t.id === sessionModal.ttId)?.days ?? [])[sessionModal.dayIdx]} — {PDF_SLOTS[sessionModal.slotIdx]}
                 </p>
               </div>
-              <button onClick={() => setSessionModal(m => ({...m, open: false}))} className="p-1.5 rounded-lg hover:bg-bg-main text-text-muted transition">
+              <button onClick={() => setSessionModal(m => ({ ...m, open: false }))} className="p-1.5 rounded-lg hover:bg-bg-main text-text-muted transition">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -567,11 +568,11 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
             <div className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Matière *</label>
-                <input value={sessionModal.data.subject} onChange={e => setSessionModal(m => ({...m, data: {...m.data, subject: e.target.value}}))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm" placeholder="Ex: Algorithmique" />
+                <input value={sessionModal.data.subject} onChange={e => setSessionModal(m => ({ ...m, data: { ...m.data, subject: e.target.value } }))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm" placeholder="Ex: Algorithmique" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Type</label>
-                <select value={sessionModal.data.type} onChange={e => setSessionModal(m => ({...m, data: {...m.data, type: e.target.value}}))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm">
+                <select value={sessionModal.data.type} onChange={e => setSessionModal(m => ({ ...m, data: { ...m.data, type: e.target.value } }))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm">
                   <option value="Cours">Cours</option>
                   <option value="TD">TD</option>
                   <option value="TP">TP</option>
@@ -580,11 +581,11 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Professeur</label>
-                <input value={sessionModal.data.teacher} onChange={e => setSessionModal(m => ({...m, data: {...m.data, teacher: e.target.value}}))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm" placeholder="Ex: Dr. Dupont" />
+                <input value={sessionModal.data.teacher} onChange={e => setSessionModal(m => ({ ...m, data: { ...m.data, teacher: e.target.value } }))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm" placeholder="Ex: Dr. Dupont" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Salle (Optionnel)</label>
-                <input value={sessionModal.data.room} onChange={e => setSessionModal(m => ({...m, data: {...m.data, room: e.target.value}}))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm" placeholder="Ex: Salle 104" />
+                <input value={sessionModal.data.room} onChange={e => setSessionModal(m => ({ ...m, data: { ...m.data, room: e.target.value } }))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm" placeholder="Ex: Salle 104" />
               </div>
             </div>
 
@@ -605,7 +606,6 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables })
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const getClassSemesters = (className) => {
   if (className.includes('TC1')) return ['S1', 'S2'];
@@ -627,12 +627,12 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
     return e.classGroup === cls.name && semesterModules.some(m => m.name === e.moduleName);
   });
 
-  const filteredModules = semesterModules.filter(mod => 
+  const filteredModules = semesterModules.filter(mod =>
     mod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     mod.teacher.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredEvals = semesterEvals.filter(ev => 
+  const filteredEvals = semesterEvals.filter(ev =>
     ev.moduleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ev.type.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -653,7 +653,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
         </button>
         <div>
           <h2 className="font-heading font-extrabold text-2xl text-text-main m-0">{cls.name}</h2>
-          <p className="text-sm text-text-muted mt-1">{cls.specialty} • {cls.studentCount} Étudiants</p>
+          <p className="text-sm text-text-muted mt-1">{cls.specialty} â€¢ {cls.studentCount} Étudiants</p>
         </div>
       </div>
 
@@ -663,17 +663,16 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
             <button
               key={sem}
               onClick={() => setSelectedSemester(sem)}
-              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                selectedSemester === sem
-                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
-                  : 'bg-bg-surface text-text-muted border border-border-main hover:bg-bg-hover'
-              }`}
+              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${selectedSemester === sem
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                : 'bg-bg-surface text-text-muted border border-border-main hover:bg-bg-hover'
+                }`}
             >
               Semestre {sem}
             </button>
           ))}
         </div>
-        
+
         <div className="flex justify-center bg-bg-surface border border-border-main rounded-xl p-1 shrink-0 overflow-x-auto">
           {[
             { id: 'modules', label: 'Modules', icon: Layers },
@@ -684,11 +683,10 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
             <button
               key={tab.id}
               onClick={() => { setInnerTab(tab.id); setSearchQuery(''); }}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                innerTab === tab.id
-                  ? 'bg-bg-main text-text-main shadow-sm border border-border-main'
-                  : 'text-text-muted hover:text-text-main'
-              }`}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${innerTab === tab.id
+                ? 'bg-bg-main text-text-main shadow-sm border border-border-main'
+                : 'text-text-muted hover:text-text-main'
+                }`}
             >
               <tab.icon className={`w-3.5 h-3.5 ${innerTab === tab.id ? 'text-emerald-500' : ''}`} />
               {tab.label}
@@ -721,7 +719,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
               {filteredModules.length > 0 ? filteredModules.map(mod => {
                 const isExpanded = expandedModuleId === mod.id;
                 const toggleExpand = () => setExpandedModuleId(isExpanded ? null : mod.id);
-                
+
                 return (
                   <div key={mod.id} className="bg-bg-main border border-border-main rounded-xl overflow-hidden transition-colors duration-200">
                     <div onClick={toggleExpand} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-bg-hover transition">
@@ -877,7 +875,6 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
   );
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const AVATAR_COLORS = [
   'bg-emerald-600', 'bg-teal-600', 'bg-teal-600',
@@ -994,7 +991,7 @@ function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
+
   // Theme State
   const [darkMode, setDarkMode] = useState(false);
 
@@ -1013,9 +1010,95 @@ function App() {
   const [todayScheduleState, setTodayScheduleState] = useState([]);
   const [classPerformanceState, setClassPerformanceState] = useState([]);
 
-  const availableYears = useMemo(() => academicYears.map(ay => ay.label), [academicYears]);
+  const getModuleProgressValue = (mod) => {
+    const rawProgress = mod.progress ?? (mod.progress && mod.progress.value);
+    const parsedProgress = Number(rawProgress);
+    if (!Number.isNaN(parsedProgress) && rawProgress !== null && rawProgress !== undefined) {
+      return Math.max(0, Math.min(100, parsedProgress));
+    }
 
-  const loadData = async () => {
+    const totalHours = Number(mod.total_hours ?? mod.totalHours ?? 0);
+    const remainingHours = Number(mod.remaining_hours ?? mod.remainingHours ?? mod.remainingHours ?? 0);
+    if (totalHours > 0) {
+      return Math.max(0, Math.min(100, Math.round(((totalHours - remainingHours) / totalHours) * 100)));
+    }
+    return 0;
+  };
+
+  const getModuleTotalHours = (mod) => Number(mod.total_hours ?? mod.totalHours ?? 0) || 0;
+  const getModuleRemainingHours = (mod) => Number(mod.remaining_hours ?? mod.remainingHours ?? 0) || 0;
+  const getModuleClassKey = (mod) => mod.class_id || mod.classId || mod.className || mod.class || '';
+
+  const moduleProgressSummary = useMemo(() => {
+    const total = modules.length;
+    const totalHours = modules.reduce((sum, mod) => sum + getModuleTotalHours(mod), 0);
+    const completedHours = modules.reduce((sum, mod) => {
+      const moduleHours = getModuleTotalHours(mod);
+      if (moduleHours > 0) {
+        return sum + Math.max(0, moduleHours - getModuleRemainingHours(mod));
+      }
+      return sum;
+    }, 0);
+    const average = totalHours > 0
+      ? Number(((completedHours / totalHours) * 100).toFixed(1))
+      : (total > 0 ? Number((modules.reduce((sum, mod) => sum + getModuleProgressValue(mod), 0) / total).toFixed(1)) : 0);
+
+    return {
+      total,
+      totalHours,
+      completedHours: Number(completedHours.toFixed(1)),
+      remainingHours: Number(Math.max(0, totalHours - completedHours).toFixed(1)),
+      average
+    };
+  }, [modules]);
+
+  const moduleProgressPieData = useMemo(() => {
+    const completed = moduleProgressSummary.average;
+    return [
+      { name: 'Progression realisee', value: completed, color: '#14b8a6' },
+      { name: 'Progression restante', value: Number(Math.max(0, 100 - completed).toFixed(1)), color: '#f59e0b' }
+    ];
+  }, [moduleProgressSummary]);
+
+  const classModuleProgress = useMemo(() => {
+    if (!classes.length) return classPerformanceState;
+
+    const grouped = classes.reduce((acc, cls) => {
+      acc[cls.id] = { name: cls.name || 'Classe', totalHours: 0, completedHours: 0, progressTotal: 0, count: 0 };
+      return acc;
+    }, {});
+
+    modules.forEach(mod => {
+      const classKey = getModuleClassKey(mod);
+      const classEntry = grouped[classKey] || Object.values(grouped).find(entry => entry.name === mod.className);
+      if (!classEntry) return;
+
+      const moduleHours = getModuleTotalHours(mod);
+      if (moduleHours > 0) {
+        classEntry.totalHours += moduleHours;
+        classEntry.completedHours += Math.max(0, moduleHours - getModuleRemainingHours(mod));
+      } else {
+        classEntry.progressTotal += getModuleProgressValue(mod);
+        classEntry.count += 1;
+      }
+    });
+
+    return Object.values(grouped)
+      .map(entry => {
+        const progress = entry.totalHours > 0
+          ? (entry.completedHours / entry.totalHours) * 100
+          : (entry.count > 0 ? entry.progressTotal / entry.count : 0);
+        return { name: entry.name, average: Number(progress.toFixed(1)) };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [classes, modules, classPerformanceState]);
+
+  const chartClassProgressData = classModuleProgress.length
+    ? classModuleProgress
+    : (classPerformanceState.length ? classPerformanceState : classes.map(cls => ({ name: cls.name || 'Classe', average: 0 })));
+
+  const availableYears = useMemo(() => academicYears.map(ay => ay.label), [academicYears]);
+const loadData = async () => {
     try {
       const years = await api.getAcademicYears();
       setAcademicYears(years);
@@ -1023,31 +1106,61 @@ function App() {
         const current = years.find(y => y.is_current) || years[0];
         setSelectedYear(current.label);
       }
-      
-      const cls = await api.getClasses();
-      setClasses(cls);
-      
+
+      // --- MAPPING DES CLASSES (Neon -> React) ---
+      const rawCls = await api.getClasses();
+      const mappedClasses = rawCls.map(c => ({
+        id: c.id,
+        name: c.name,
+        specialty: c.specialty,
+        level: c.level,
+        studentCount: c.student_count || c.studentCount || 0,
+        headTeacherId: c.head_teacher_id || c.headTeacherId,
+        representative: c.representative,
+        scheduleProgress: c.schedule_progress || c.scheduleProgress || 0
+      }));
+      setClasses(mappedClasses);
+
       const profs = await api.getProfessors();
       setProfessors(profs);
-      
-      const mods = await api.getModules();
-      setModules(mods);
-      
+
+      // --- MAPPING DES MODULES (Neon -> React) ---
+      const rawMods = await api.getModules();
+      const mappedModules = rawMods.map(m => {
+        const profObj = profs.find(p => p.id === (m.teacher_id || m.teacherId));
+        const classObj = mappedClasses.find(c => c.id === (m.class_id || m.classId));
+        
+        return {
+          id: m.id,
+          name: m.name,
+          teacher: profObj ? profObj.name : 'Non assigné',
+          teacherId: m.teacher_id || m.teacherId,
+          classId: m.class_id || m.classId,
+          className: classObj ? classObj.name : '',
+          semester: m.semester,
+          totalHours: m.total_hours || m.totalHours || 0,
+          remainingHours: m.remaining_hours || m.remainingHours || 0,
+          progress: m.progress || 0,
+          status: m.status || 'En cours'
+        };
+      });
+      setModules(mappedModules);
+
       const evals = await api.getEvaluations();
       setEvaluations(evals);
-      
+
       const tts = await api.getTimetables();
       setTimetables(tts);
 
       const rms = await api.getRooms();
       setRooms(rms);
-      
+
       const stats = await api.getDashboardStats();
       setDashboardStats(stats);
-      
+
       const today = await api.getTodaySchedule();
       setTodayScheduleState(today);
-      
+
       const performance = await api.getClassPerformance();
       setClassPerformanceState(performance);
     } catch (err) {
@@ -1113,7 +1226,7 @@ function App() {
   const [modFormError, setModFormError] = useState('');
   const [expandedModuleId, setExpandedModuleId] = useState(null);
 
-  const [evalModal, setEvalModal] = useState({ open: false, mode: 'add', data: { moduleName: '', type: '', date: '', time: '', classGroup: '', room: '', weight: '', status: 'Planifié' }, editId: null });
+  const [evalModal, setEvalModal] = useState({ open: false, mode: 'add', data: { moduleName: '', type: 'Evaluation', date: '', time: '', classGroup: '', room: '', weight: '100', status: 'Planifié' }, editId: null });
   const [evalFormError, setEvalFormError] = useState('');
 
   // Hook to toggle dark class on document element
@@ -1214,7 +1327,7 @@ function App() {
     const profObj = professors.find(p => p.name === teacher.trim());
     const classObj = classes.find(c => c.name === className.trim());
     const prereqObj = modules.find(m => m.name === prerequisite?.trim());
-    
+
     const payload = {
       name: name.trim(),
       teacher_id: profObj ? profObj.id : null,
@@ -1258,50 +1371,51 @@ function App() {
   // Evaluation CRUD handlers
   const openAddEval = () => {
     setEvalFormError('');
-    setEvalModal({ open: true, mode: 'add', data: { moduleName: '', type: '', date: '', time: '', classGroup: '', room: '', weight: '', status: 'Planifié' }, editId: null });
+    setEvalModal({ open: true, mode: 'add', data: { moduleName: '', type: 'Evaluation', date: '', time: '08:00', classGroup: '', status: 'Planifié' }, editId: null });
   };
   const openEditEval = (ev) => {
     setEvalFormError('');
     setEvalModal({
       open: true, mode: 'edit',
-      data: { moduleName: ev.moduleName, type: ev.type, date: ev.date, time: ev.time, classGroup: ev.classGroup, room: ev.room, weight: String(ev.weight), status: ev.status },
+      data: { moduleName: ev.moduleName, type: ev.type, date: ev.eval_date || ev.date, time: ev.time, classGroup: ev.classGroup, status: ev.status },
       editId: ev.id
     });
   };
   const closeEval = () => setEvalModal(m => ({ ...m, open: false }));
   const handleEvalField = (field, value) => setEvalModal(m => ({ ...m, data: { ...m.data, [field]: value } }));
+  const findByName = (items, name) => {
+    const normalizedName = name.trim().toLowerCase();
+    return items.find(item => (item.name || '').trim().toLowerCase() === normalizedName);
+  };
   const saveEval = async () => {
-    const { moduleName, type, date, time, classGroup, room, weight, status } = evalModal.data;
-    if (!moduleName.trim() || !classGroup.trim()) {
-      setEvalFormError('Nom du module et classe sont requis.');
+    const { moduleName, type, date, time, classGroup, status } = evalModal.data;
+    if (!moduleName.trim() || !classGroup.trim() || !date.trim()) {
+      setEvalFormError('Nom du module, classe et date sont requis.');
       return;
     }
-    
-    const modObj = modules.find(m => m.name === moduleName.trim());
-    const classObj = classes.find(c => c.name === classGroup.trim());
-    const roomObj = rooms.find(r => r.name === room.trim());
-    const ayObj = academicYears.find(ay => ay.label === selectedYear);
 
-    let formattedDate = date.trim();
-    if (!formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      if (formattedDate.toLowerCase().includes('juin')) {
-        const day = formattedDate.split(' ')[0];
-        formattedDate = `2026-06-${day.padStart(2, '0')}`;
-      } else {
-        formattedDate = '2026-06-16';
-      }
+    const modObj = findByName(modules, moduleName);
+    const classObj = findByName(classes, classGroup);
+    if (!modObj) {
+      setEvalFormError('Module introuvable. Sélectionnez un module existant dans les suggestions.');
+      return;
     }
+    if (!classObj) {
+      setEvalFormError('Classe introuvable. Sélectionnez une classe existante dans les suggestions.');
+      return;
+    }
+    const ayObj = academicYears.find(ay => ay.label === selectedYear);
 
     const payload = {
       module_id: modObj ? modObj.id : null,
-      type: type.trim(),
-      eval_date: formattedDate,
+      type: type.trim() || 'Evaluation',
+      eval_date: date,
       eval_time: time.trim() || '08:00:00',
       class_id: classObj ? classObj.id : null,
-      room_id: roomObj ? roomObj.id : null,
+      room_id: null,
       academic_year_id: ayObj ? ayObj.id : null,
-      weight: parseInt(weight) || 0,
-      status
+      weight: 100,
+      status: status || 'Planifié'
     };
 
     try {
@@ -1334,7 +1448,7 @@ function App() {
 
   // Filter listings based on inputs
   const filteredClasses = useMemo(() => {
-    return classes.filter(cls => 
+    return classes.filter(cls =>
       cls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cls.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (cls.level && cls.level.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -1342,14 +1456,14 @@ function App() {
   }, [searchQuery, classes]);
 
   const filteredProfs = useMemo(() => {
-    return professors.filter(prof => 
+    return professors.filter(prof =>
       prof.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       prof.department.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [searchQuery, professors]);
 
   const filteredModules = useMemo(() => {
-    return modules.filter(mod => 
+    return modules.filter(mod =>
       mod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (mod.className && mod.className.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (mod.teacher && mod.teacher.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -1361,8 +1475,8 @@ function App() {
     return evaluations.filter(ev => {
       if (ayObj && ev.academic_year_id && ev.academic_year_id !== ayObj.id) return false;
       return ev.moduleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             (ev.classGroup && ev.classGroup.toLowerCase().includes(searchQuery.toLowerCase())) ||
-             ev.type.toLowerCase().includes(searchQuery.toLowerCase());
+        (ev.classGroup && ev.classGroup.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        ev.type.toLowerCase().includes(searchQuery.toLowerCase());
     });
   }, [searchQuery, evaluations, selectedYear, academicYears]);
 
@@ -1375,7 +1489,7 @@ function App() {
   // Chart configuration constants based on active theme
   const chartGridColor = darkMode ? "#1e293b" : "#e2e8f0";
   const chartTooltipStyle = useMemo(() => {
-    return darkMode 
+    return darkMode
       ? { backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#f1f5f9' }
       : { backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '12px', color: '#0f172a' };
   }, [darkMode]);
@@ -1386,15 +1500,15 @@ function App() {
 
   return (
     <div className="flex min-h-screen bg-bg-main text-text-main font-sans antialiased selection:bg-emerald-500 selection:text-white transition-colors duration-200">
-      
+
       {/* Background Ambient Glows */}
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-teal-500/5 dark:bg-teal-500/3 rounded-full blur-[100px] pointer-events-none"></div>
 
       {/* Mobile Overlay */}
-      <div 
-        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-30 md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
-        onClick={() => setIsSidebarOpen(false)} 
+      <div
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-30 md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setIsSidebarOpen(false)}
       />
 
       {/* Sidebar Navigation */}
@@ -1433,11 +1547,10 @@ function App() {
                   setSearchQuery('');
                   setIsSidebarOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${
-                  currentTab === tab.id
-                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-600/20'
-                    : 'text-text-muted hover:text-text-main hover:bg-bg-hover'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${currentTab === tab.id
+                  ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-600/20'
+                  : 'text-text-muted hover:text-text-main hover:bg-bg-hover'
+                  }`}
               >
                 <Icon className={`w-5 h-5 transition-transform duration-200 group-hover:scale-105 ${currentTab === tab.id ? 'text-white' : 'text-text-muted'}`} />
                 {tab.label}
@@ -1448,8 +1561,8 @@ function App() {
 
         {/* User Footer */}
         <div className="p-4 border-t border-border-main bg-slate-100/10 dark:bg-slate-950/20">
-          <button 
-            onClick={() => setIsAuthenticated(false)} 
+          <button
+            onClick={() => setIsAuthenticated(false)}
             className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-rose-500/10 group transition-all"
             title="Se déconnecter"
           >
@@ -1468,11 +1581,11 @@ function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden transition-colors duration-200">
-        
+
         {/* Top Header */}
         <header className="min-h-[5rem] py-3 border-b border-border-main bg-bg-header/80 backdrop-blur-md flex items-center justify-between px-4 md:px-8 z-10 sticky top-0 transition-colors duration-200 gap-4">
           <div className="flex items-center gap-3 md:gap-0 overflow-hidden">
-            <button 
+            <button
               className="md:hidden p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-bg-hover rounded-xl transition flex-shrink-0"
               onClick={() => setIsSidebarOpen(true)}
             >
@@ -1480,36 +1593,36 @@ function App() {
             </button>
             <div className="min-w-0">
               <h2 className="font-heading font-bold text-lg md:text-xl tracking-tight text-text-main m-0 truncate">
-              {currentTab === 'dashboard' && "Gestion du Temps & Planification"}
-              {currentTab === 'emploidutemps' && "Emplois du Temps Hebdomadaire"}
-              {currentTab === 'classes' && "Gestion des Niveaux / Groupes"}
-              {currentTab === 'professeurs' && "Registre des Enseignants"}
-              {currentTab === 'modules' && "Modules d'Enseignement"}
-              {currentTab === 'evaluations' && "Agenda des Evaluations"}
-              {currentTab === 'statistiques' && "Analyses et Taux d'Occupation"}
-            </h2>
-            <p className="hidden md:block text-xs text-text-muted mt-0.5 truncate">
-              {currentTab === 'dashboard' && "Emploi du temps d'aujourd'hui et alertes en direct."}
-              {currentTab === 'emploidutemps' && "Grille hebdomadaire de toutes les séances programmées par groupe et salle."}
-              {currentTab === 'classes' && "Suivi des promotions, délégués et progression du programme."}
-              {currentTab === 'professeurs' && "Disponibilité et charge d'enseignement des professeurs."}
-              {currentTab === 'modules' && "Coefficients, crédits et départements académiques."}
-              {currentTab === 'evaluations' && "Sessions de contrôles, examens et soutenances de projets."}
-              {currentTab === 'statistiques' && "Visualisation analytique de l'utilisation des ressources."}
-            </p>
+                {currentTab === 'dashboard' && "Gestion du Temps & Planification"}
+                {currentTab === 'emploidutemps' && "Emplois du Temps Hebdomadaire"}
+                {currentTab === 'classes' && "Gestion des Niveaux / Groupes"}
+                {currentTab === 'professeurs' && "Registre des Enseignants"}
+                {currentTab === 'modules' && "Modules d'Enseignement"}
+                {currentTab === 'evaluations' && "Agenda des Evaluations"}
+                {currentTab === 'statistiques' && "Statistiques des Modules"}
+              </h2>
+              <p className="hidden md:block text-xs text-text-muted mt-0.5 truncate">
+                {currentTab === 'dashboard' && "Emploi du temps d'aujourd'hui et alertes en direct."}
+                {currentTab === 'emploidutemps' && "Grille hebdomadaire de toutes les séances programmées par groupe et salle."}
+                {currentTab === 'classes' && "Suivi des promotions, délégués et progression du programme."}
+                {currentTab === 'professeurs' && "Disponibilité et charge d'enseignement des professeurs."}
+                {currentTab === 'modules' && "Coefficients, crédits et départements académiques."}
+                {currentTab === 'evaluations' && "Sessions de contrôles, examens et soutenances de projets."}
+                {currentTab === 'statistiques' && "Visualisation analytique de l'utilisation des ressources."}
+              </p>
+            </div>
           </div>
-          </div>
-          
+
           <div className="flex items-center gap-4">
             {/* Theme Toggle Button */}
-            <button 
+            <button
               onClick={() => setDarkMode(!darkMode)}
               className="p-2 text-text-muted hover:text-text-main bg-bg-surface hover:bg-bg-hover border border-border-main rounded-xl transition-all shadow-sm"
               title={darkMode ? "Activer le mode clair" : "Activer le mode sombre"}
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            
+
             <button className="relative p-2 text-text-muted hover:text-text-main bg-bg-surface hover:bg-bg-hover border border-border-main rounded-xl transition-all shadow-sm">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-bg-main"></span>
@@ -1518,7 +1631,7 @@ function App() {
             <div className="hidden sm:block text-right relative group">
               <div className="text-xs font-semibold text-text-main leading-none cursor-pointer group-hover:text-emerald-500 transition-colors py-2 flex items-center gap-1.5 justify-end">
                 Année {selectedYear}
-                <span className="text-[8px] transition-transform duration-200 group-hover:rotate-180">▼</span>
+                <span className="text-[8px] transition-transform duration-200 group-hover:rotate-180">â–¼</span>
               </div>
               <div className="absolute right-0 top-full mt-0 bg-bg-surface border border-border-main rounded-xl shadow-xl shadow-emerald-500/10 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 w-32 py-1">
                 {availableYears.map((year) => (
@@ -1543,7 +1656,7 @@ function App() {
             <>
               {/* Stats Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                
+
                 {[
                   { title: "Total Groupes", value: `${dashboardStats.totalClasses || 0} Classes`, border: "bg-emerald-500", icon: Users, color: "text-emerald-500 dark:text-emerald-400 bg-emerald-500/10" },
                   { title: "Professeurs Actifs", value: `${dashboardStats.totalProfessors || 0} Enseignants`, border: "bg-teal-500", icon: GraduationCap, color: "text-teal-500 dark:text-teal-400 bg-teal-500/10" },
@@ -1570,7 +1683,7 @@ function App() {
 
               {/* Main Timetable Content */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
+
                 {/* Schedule timeline list */}
                 <div className="lg:col-span-2 bg-bg-surface border border-border-main shadow-sm dark:shadow-none p-6 rounded-2xl space-y-6 transition-colors duration-200">
                   <div className="flex justify-between items-center">
@@ -1585,8 +1698,8 @@ function App() {
 
                   <div className="space-y-4">
                     {todayScheduleState.length > 0 ? todayScheduleState.map((sch) => (
-                      <div 
-                        key={sch.id} 
+                      <div
+                        key={sch.id}
                         className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-4 rounded-xl border border-l-4 transition duration-200 hover:bg-bg-hover ${sch.color}`}
                       >
                         <div className="space-y-1">
@@ -1660,9 +1773,9 @@ function App() {
 
           {/* TAB 3: CLASSES */}
           {currentTab === 'classes' && selectedClass ? (
-            <ClassDetailView 
-              cls={selectedClass} 
-              onBack={() => setSelectedClass(null)} 
+            <ClassDetailView
+              cls={selectedClass}
+              onBack={() => setSelectedClass(null)}
               modules={modules}
               evaluations={evaluations}
               timetables={timetables}
@@ -1699,8 +1812,8 @@ function App() {
                   const levelColor = isLicence
                     ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
                     : isM1
-                    ? 'bg-teal-500/10 text-teal-600 border-teal-500/20'
-                    : 'bg-teal-500/10 text-teal-600 border-teal-500/20';
+                      ? 'bg-teal-500/10 text-teal-600 border-teal-500/20'
+                      : 'bg-teal-500/10 text-teal-600 border-teal-500/20';
                   return (
                     <div key={cls.id} className="bg-bg-surface border border-border-main shadow-sm dark:shadow-none p-6 rounded-2xl flex flex-col justify-between hover:border-emerald-500/30 transition duration-200">
                       <div>
@@ -2036,11 +2149,11 @@ function App() {
                 {filteredModules.map(mod => {
                   const isExpanded = expandedModuleId === mod.id;
                   const toggleExpand = () => setExpandedModuleId(isExpanded ? null : mod.id);
-                  
+
                   return (
                     <div key={mod.id} className="bg-bg-surface border border-border-main shadow-sm dark:shadow-none rounded-2xl overflow-hidden transition-colors duration-200">
                       {/* Compact Header (Always visible) */}
-                      <div 
+                      <div
                         onClick={toggleExpand}
                         className="p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-bg-hover transition"
                       >
@@ -2055,7 +2168,7 @@ function App() {
                           </div>
                           <p className="text-xs text-text-muted mt-1">Semestre: {mod.semester} | Classe: {mod.className}</p>
                         </div>
-                        
+
                         <div className="flex items-center gap-6 md:w-1/3">
                           <div className="flex-1">
                             <div className="flex justify-between items-center text-[10px] text-text-muted mb-1 font-semibold">
@@ -2093,7 +2206,7 @@ function App() {
                                 <span className="text-text-main font-mono">{mod.total_hours}h (Reste: {mod.remaining_hours}h)</span>
                               </div>
                             </div>
-                            
+
                             <div className="flex items-end justify-end gap-2 mt-4 md:mt-0">
                               <button
                                 onClick={(e) => { e.stopPropagation(); openEditMod(mod); }}
@@ -2283,38 +2396,41 @@ function App() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
                         <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Module *</label>
-                        <input type="text" value={evalModal.data.moduleName} onChange={e => handleEvalField('moduleName', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
+                        <input
+                          type="text"
+                          list="evaluation-modules"
+                          value={evalModal.data.moduleName}
+                          onChange={e => handleEvalField('moduleName', e.target.value)}
+                          className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition"
+                        />
+                        <datalist id="evaluation-modules">
+                          {modules.map(mod => (
+                            <option key={mod.id} value={mod.name} />
+                          ))}
+                        </datalist>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Type (CC, EF...)</label>
-                        <input type="text" value={evalModal.data.type} onChange={e => handleEvalField('type', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
-                      </div>
-                      <div>
+                      <div className="col-span-2">
                         <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Classe *</label>
-                        <input type="text" value={evalModal.data.classGroup} onChange={e => handleEvalField('classGroup', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
+                        <input
+                          type="text"
+                          list="evaluation-classes"
+                          value={evalModal.data.classGroup}
+                          onChange={e => handleEvalField('classGroup', e.target.value)}
+                          className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition"
+                        />
+                        <datalist id="evaluation-classes">
+                          {classes.map(cls => (
+                            <option key={cls.id} value={cls.name} />
+                          ))}
+                        </datalist>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Date</label>
-                        <input type="text" value={evalModal.data.date} onChange={e => handleEvalField('date', e.target.value)} placeholder="Ex: 15 Juin 2026" className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
+                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Date *</label>
+                        <input type="date" value={evalModal.data.date} onChange={e => handleEvalField('date', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Heure</label>
-                        <input type="text" value={evalModal.data.time} onChange={e => handleEvalField('time', e.target.value)} placeholder="Ex: 09:00" className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Salle</label>
-                        <input type="text" value={evalModal.data.room} onChange={e => handleEvalField('room', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Poids (%)</label>
-                        <input type="number" value={evalModal.data.weight} onChange={e => handleEvalField('weight', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Statut</label>
-                        <select value={evalModal.data.status} onChange={e => handleEvalField('status', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition">
-                          <option value="Planifié">Planifié</option>
-                          <option value="Terminé">Terminé</option>
-                        </select>
+                        <input type="time" value={evalModal.data.time} onChange={e => handleEvalField('time', e.target.value)} className="w-full px-3 py-2 bg-bg-main border border-border-main rounded-xl text-sm text-text-main focus:border-emerald-500 transition" />
                       </div>
                     </div>
 
@@ -2334,74 +2450,78 @@ function App() {
           {currentTab === 'statistiques' && (
             <div className="space-y-8 animate-fade-in">
               {/* Analytics Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                
-                {/* Timeline Chart Room Occupancy */}
-                <div className="bg-bg-surface border border-border-main shadow-sm dark:shadow-none p-6 rounded-2xl flex flex-col justify-between transition-colors duration-200">
-                  <div>
-                    <h4 className="font-heading font-semibold text-lg text-text-main m-0">Taux d'Occupation des Salles</h4>
-                    <p className="text-xs text-text-muted mb-6">Pourcentage moyen d'occupation par heure.</p>
+              <div>
+                {/* Global Module Progression Pie */}
+                <div className="bg-bg-surface border border-border-main shadow-sm dark:shadow-none p-6 rounded-2xl transition-colors duration-200">
+                  <div className="mb-6">
+                    <h4 className="font-heading font-semibold text-lg text-text-main m-0">Progression Globale des Modules</h4>
+                    <p className="text-xs text-text-muted mt-2">Heures realisees sur le volume horaire total de tous les modules, toutes classes confondues.</p>
                   </div>
-                  
-                  <div className="w-full h-[240px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={roomOccupancyTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorOccupancy" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} vertical={false} />
-                        <XAxis dataKey="hour" stroke="#6b7280" fontSize={11} tickLine={false} />
-                        <YAxis stroke="#6b7280" fontSize={11} tickLine={false} />
-                        <Tooltip contentStyle={chartTooltipStyle} />
-                        <Area type="monotone" dataKey="occupancy" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorOccupancy)" name="Taux %" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
 
-                {/* Class Performance Index */}
-                <div className="bg-bg-surface border border-border-main shadow-sm dark:shadow-none p-6 rounded-2xl flex flex-col justify-between transition-colors duration-200">
-                  <div>
-                    <h4 className="font-heading font-semibold text-lg text-text-main m-0">Performance Moyenne Académique</h4>
-                    <p className="text-xs text-text-muted mb-6">Progression globale moyenne des programmes par groupe.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-bg-main border border-border-main rounded-2xl p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-text-muted mb-2">Modules Totaux</p>
+                      <p className="text-2xl font-bold text-text-main">{moduleProgressSummary.total}</p>
+                    </div>
+                    <div className="bg-bg-main border border-border-main rounded-2xl p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-text-muted mb-2">Heures realisees</p>
+                      <p className="text-2xl font-bold text-emerald-500">{moduleProgressSummary.completedHours}h</p>
+                    </div>
+                    <div className="bg-bg-main border border-border-main rounded-2xl p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-text-muted mb-2">Taux global</p>
+                      <p className="text-2xl font-bold text-text-main">{moduleProgressSummary.average}%</p>
+                    </div>
                   </div>
-                  
-                  <div className="w-full h-[240px]">
+
+                  <div className="w-full h-[260px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={classPerformanceState} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} vertical={false} />
-                        <XAxis dataKey="name" stroke="#6b7280" fontSize={11} tickLine={false} />
-                        <YAxis domain={[0, 100]} stroke="#6b7280" fontSize={11} tickLine={false} />
-                        <Tooltip contentStyle={chartTooltipStyle} />
-                        <Bar dataKey="average" fill="#14b8a6" radius={[6, 6, 0, 0]} name="Progression %">
-                          {classPerformanceState.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#6366f1' : '#14b8a6'} />
+                      <PieChart>
+                        <Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [`${value}%`, '']} />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                        <Pie
+                          data={moduleProgressPieData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="45%"
+                          innerRadius={60}
+                          outerRadius={90}
+                          paddingAngle={4}
+                          label={({ name, value }) => `${name} ${value}%`}
+                          labelLine={false}
+                        >
+                          {moduleProgressPieData.map((entry, index) => (
+                            <Cell key={`slice-${index}`} fill={entry.color} />
                           ))}
-                        </Bar>
-                      </BarChart>
+                        </Pie>
+                      </PieChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
-
               </div>
 
-              {/* Informative Stats Block */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {[
-                  { title: "Pic d'Occupation", val: "10:15", desc: "Avec 80% des locaux alloués, correspondant aux cours principaux du matin." },
-                  { title: "Moyenne d'école", val: "14.00 / 20", desc: "Calculée sur l'ensemble des modules évalués ce trimestre." },
-                  { title: "Salle la plus sollicitée", val: "Amphi A", desc: "Utilisé à hauteur de 32 heures hebdomadaires pour les cours magistraux." }
-                ].map((item, idx) => (
-                  <div key={idx} className="p-6 bg-bg-surface border border-border-main shadow-sm dark:shadow-none rounded-2xl transition-colors duration-200">
-                    <h5 className="font-bold text-xs text-text-muted uppercase tracking-wide m-0">{item.title}</h5>
-                    <p className="text-2xl font-heading font-extrabold text-text-main mt-2 mb-1 leading-none">{item.val}</p>
-                    <p className="text-xs text-text-muted mt-1 leading-relaxed">{item.desc}</p>
-                  </div>
-                ))}
+              <div className="bg-bg-surface border border-border-main shadow-sm dark:shadow-none p-6 rounded-2xl transition-colors duration-200">
+                <div>
+                  <h4 className="font-heading font-semibold text-lg text-text-main m-0">Progression par Classe</h4>
+                  <p className="text-xs text-text-muted mb-6">Pourcentage moyen de progression des modules pour chaque classe.</p>
+                </div>
+                <div className="w-full h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartClassProgressData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} vertical={false} />
+                      <XAxis dataKey="name" stroke="#6b7280" fontSize={11} tickLine={false} interval={0} angle={-20} textAnchor="end" />
+                      <YAxis domain={[0, 100]} stroke="#6b7280" fontSize={11} tickLine={false} />
+                      <Tooltip contentStyle={chartTooltipStyle} />
+                      <Bar dataKey="average" fill="#14b8a6" radius={[6, 6, 0, 0]} name="Progression %">
+                        {chartClassProgressData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#6366f1' : '#14b8a6'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
+
             </div>
           )}
 
@@ -2409,7 +2529,7 @@ function App() {
 
         {/* Footer */}
         <footer className="py-6 border-t border-border-main text-center text-[10px] text-text-muted mt-auto bg-slate-100/10 dark:bg-slate-950/10">
-          ESIManage Pro • Module de Gestion des Emplois du Temps & des Evaluations • 2026.
+          ESIManage Pro Plateforme de Gestion des Emplois du Temps & des Evaluations.
         </footer>
       </main>
 

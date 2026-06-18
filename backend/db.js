@@ -1,17 +1,17 @@
-import mysql from 'mysql2/promise';
+import pg from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'esimanage_pro',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+const { Pool } = pg;
+
+// Utilisation de la chaîne de connexion unique fournie par Neon
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    // Requis par Neon pour sécuriser la connexion TLS/SSL dans le Cloud
+    rejectUnauthorized: false 
+  }
 });
 
 export default pool;

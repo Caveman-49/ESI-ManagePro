@@ -1,19 +1,13 @@
 -- ============================================================
--- ESIManage Pro — Database Schema (MySQL 8+)
+-- ESIManage Pro — Database Schema (PostgreSQL / Neon)
 -- ============================================================
-
-CREATE DATABASE IF NOT EXISTS esimanage_pro
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE esimanage_pro;
 
 -- ─── 1. Années Académiques ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS academic_years (
     id VARCHAR(50) PRIMARY KEY,
     label VARCHAR(20) UNIQUE NOT NULL,
     is_current BOOLEAN DEFAULT FALSE
-) ENGINE=InnoDB;
+);
 
 -- ─── 2. Utilisateurs ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
@@ -23,7 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL DEFAULT 'Admin',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+);
 
 -- ─── 3. Professeurs ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS professors (
@@ -33,7 +27,7 @@ CREATE TABLE IF NOT EXISTS professors (
     email VARCHAR(150) UNIQUE NOT NULL,
     availability VARCHAR(50) DEFAULT 'Disponible',
     avatar_bg VARCHAR(50) DEFAULT 'bg-indigo-600'
-) ENGINE=InnoDB;
+);
 
 -- ─── 4. Classes ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS classes (
@@ -47,14 +41,14 @@ CREATE TABLE IF NOT EXISTS classes (
     schedule_progress INT DEFAULT 0,
     CONSTRAINT fk_classes_head_teacher FOREIGN KEY (head_teacher_id) REFERENCES professors(id) ON DELETE SET NULL,
     CONSTRAINT chk_schedule_progress CHECK (schedule_progress BETWEEN 0 AND 100)
-) ENGINE=InnoDB;
+);
 
 -- ─── 5. Salles ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rooms (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     type VARCHAR(100) NOT NULL
-) ENGINE=InnoDB;
+);
 
 -- ─── 6. Modules ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS modules (
@@ -72,7 +66,7 @@ CREATE TABLE IF NOT EXISTS modules (
     CONSTRAINT fk_modules_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
     CONSTRAINT fk_modules_prerequisite FOREIGN KEY (prerequisite_id) REFERENCES modules(id) ON DELETE SET NULL,
     CONSTRAINT chk_progress CHECK (progress BETWEEN 0 AND 100)
-) ENGINE=InnoDB;
+);
 
 -- ─── 7. Emplois du Temps ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS timetables (
@@ -82,11 +76,11 @@ CREATE TABLE IF NOT EXISTS timetables (
     academic_year_id VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_timetables_year FOREIGN KEY (academic_year_id) REFERENCES academic_years(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
+);
 
 -- ─── 8. Sessions d'Emplois du Temps ────────────────────────
 CREATE TABLE IF NOT EXISTS timetable_sessions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     timetable_id VARCHAR(50) NOT NULL,
     class_id VARCHAR(50) NOT NULL,
     day_idx INT NOT NULL,
@@ -95,26 +89,27 @@ CREATE TABLE IF NOT EXISTS timetable_sessions (
     type VARCHAR(50) NOT NULL,
     teacher VARCHAR(150),
     room VARCHAR(100),
+    is_forced BOOLEAN DEFAULT FALSE, -- Flag permettant de forcer l'insertion si le prérequis n'est pas rempli
     CONSTRAINT fk_sessions_timetable FOREIGN KEY (timetable_id) REFERENCES timetables(id) ON DELETE CASCADE,
     CONSTRAINT fk_sessions_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
     CONSTRAINT chk_day_idx CHECK (day_idx BETWEEN 0 AND 5),
     CONSTRAINT chk_slot_idx CHECK (slot_idx BETWEEN 0 AND 3),
     CONSTRAINT chk_session_type CHECK (type IN ('Cours', 'TD', 'TP', 'Evaluation')),
     CONSTRAINT uq_timetable_slot UNIQUE (timetable_id, class_id, day_idx, slot_idx)
-) ENGINE=InnoDB;
+);
 
 -- ─── 9. Notes d'Emplois du Temps ───────────────────────────
 CREATE TABLE IF NOT EXISTS timetable_notes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     timetable_id VARCHAR(50) NOT NULL,
     class_id VARCHAR(50) NOT NULL,
     note_text TEXT NOT NULL,
     CONSTRAINT fk_notes_timetable FOREIGN KEY (timetable_id) REFERENCES timetables(id) ON DELETE CASCADE,
-    CONSTRAINT fk_notes_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+    CONSTRAINT fk_notes_class KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
     CONSTRAINT uq_timetable_note UNIQUE (timetable_id, class_id)
-) ENGINE=InnoDB;
+);
 
--- ─── 10. Évaluations ───────────────────────────────────────
+-- ─── 10. Évaluations (Corrigée : sans poids ni salle) ───────
 CREATE TABLE IF NOT EXISTS evaluations (
     id VARCHAR(50) PRIMARY KEY,
     module_id VARCHAR(50) NOT NULL,
@@ -122,13 +117,57 @@ CREATE TABLE IF NOT EXISTS evaluations (
     eval_date DATE NOT NULL,
     eval_time TIME NOT NULL,
     class_id VARCHAR(50) NOT NULL,
-    room_id VARCHAR(50),
     academic_year_id VARCHAR(50),
-    weight INT NOT NULL,
     status VARCHAR(50) DEFAULT 'Planifié',
     CONSTRAINT fk_eval_module FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE,
     CONSTRAINT fk_eval_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
-    CONSTRAINT fk_eval_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL,
-    CONSTRAINT fk_eval_year FOREIGN KEY (academic_year_id) REFERENCES academic_years(id) ON DELETE SET NULL,
-    CONSTRAINT chk_weight CHECK (weight BETWEEN 0 AND 100)
-) ENGINE=InnoDB;
+    CONSTRAINT fk_eval_year FOREIGN KEY (academic_year_id) REFERENCES academic_years(id) ON DELETE SET NULL
+);
+
+
+-- ────────────────────────────────────────────────────────────
+-- 🛠️ TRIGGER POUR LA LOGIQUE DES 60% DE PROGRESSION
+-- ────────────────────────────────────────────────────────────
+
+-- 1. Création de la fonction déclenchée
+CREATE OR REPLACE FUNCTION check_module_prerequisite_progress()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_prereq_id VARCHAR(50);
+    v_prereq_progress INT;
+    v_prereq_name VARCHAR(150);
+BEGIN
+    -- Si l'utilisateur a choisi de forcer manuellement, on ignore la vérification
+    IF NEW.is_forced = TRUE THEN
+        RETURN NEW;
+    END IF;
+
+    -- Recherche s'il existe un prérequis pour le module lié à ce cours et à cette classe
+    SELECT m.prerequisite_id 
+    INTO v_prereq_id
+    FROM modules m
+    WHERE m.name = NEW.subject AND m.class_id = NEW.class_id
+    LIMIT 1;
+
+    -- Si un prérequis est défini, on contrôle sa progression actuelle
+    IF v_prereq_id IS NOT NULL THEN
+        SELECT progress, name INTO v_prereq_progress, v_prereq_name
+        FROM modules
+        WHERE id = v_prereq_id;
+
+        -- Blocage si la progression du module requis est inférieure à 60%
+        IF v_prereq_progress < 60 THEN
+            RAISE EXCEPTION 'PREREQ_NOT_MET: Le module prérequis "%" n''a atteint que %%% de progression (minimum requis : 60%%). Pourriez-vous forcer si nécessaire ?', 
+                v_prereq_name, v_prereq_progress;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Liaison de la fonction à la table des sessions
+CREATE TRIGGER trg_check_prerequisite_before_session
+BEFORE INSERT OR UPDATE ON timetable_sessions
+FOR EACH ROW
+EXECUTE FUNCTION check_module_prerequisite_progress();
