@@ -73,11 +73,12 @@ function buildPeriodLabel(mondayStr) {
 }
 
 const PDF_SLOTS = ['8h-10h', '10h-12h', '14h-16h', '16h-18h'];
-const TT_CLASSES = ['TC1', 'TC2', 'L3 ISI', 'L3 IRS'];
+const LICENCE_CLASSES = ['TC1', 'TC2', 'L3 ISI', 'L3 IRS'];
+const MASTER_CLASSES = ['M1 IRS', 'M1 SD', 'M1 SI', 'M2 IRS', 'M2 SD', 'M2 SI'];
 
-function makeEmptySchedules() {
+function makeEmptySchedules(classesList) {
   const s = {};
-  TT_CLASSES.forEach(cls => {
+  classesList.forEach(cls => {
     s[cls] = {};
     for (let d = 0; d < 6; d++) {
       s[cls][d] = {};
@@ -90,9 +91,12 @@ function makeEmptySchedules() {
 // --- Weekly Timetable Component ---------------------------------------
 function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, onDataChange }) {
   const [ttFilterClass, setTtFilterClass] = useState('');
-  const targetClasses = filterClass
+  
+  // We compute the global targetClasses only for filtering, but for creating a new form, we use formClasses.
+  const ALL_CLASSES = [...LICENCE_CLASSES, ...MASTER_CLASSES];
+  const filterClasses = filterClass
     ? [filterClass]
-    : (ttFilterClass ? [ttFilterClass] : TT_CLASSES);
+    : (ttFilterClass ? [ttFilterClass] : ALL_CLASSES);
 
   // -- Real system date: Monday of current week --
   const todayMonday = getMondayOf(new Date());
@@ -106,8 +110,19 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
 
   // -- New timetable creation panel --
   const [showForm, setShowForm] = useState(false);
-  const [newSchedules, setNewSchedules] = useState(makeEmptySchedules);
+  const [formLevel, setFormLevel] = useState('Licence'); // 'Licence' or 'Master'
+  const [newSchedules, setNewSchedules] = useState(() => makeEmptySchedules(LICENCE_CLASSES));
   const [newNotes, setNewNotes] = useState({});
+
+  // Helper to open the form
+  const handleOpenForm = (level) => {
+    setFormLevel(level);
+    setNewSchedules(makeEmptySchedules(level === 'Licence' ? LICENCE_CLASSES : MASTER_CLASSES));
+    setNewNotes({});
+    setShowForm(true);
+  };
+
+  const formClasses = formLevel === 'Licence' ? LICENCE_CLASSES : MASTER_CLASSES;
 
   // -- Session modal (shared for new + saved) --
   const [sessionModal, setSessionModal] = useState({ open: false, mode: 'new', ttId: null, cls: null, dayIdx: null, slotIdx: null, data: { subject: '', type: 'Cours', teacher: '', room: '' } });
@@ -191,7 +206,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
     try {
       const created = await api.createTimetable(newTT);
       setTimetables(prev => [created, ...prev]);
-      setNewSchedules(makeEmptySchedules());
+      setNewSchedules(makeEmptySchedules(LICENCE_CLASSES));
       setNewNotes({});
       setShowForm(false);
       if (onDataChange) onDataChange();
@@ -227,7 +242,9 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
 
     // -- Title --
     pdf.setFontSize(12);
-    pdf.text(`Licence en informatique : ${cls} – 2025-2026`, pw / 2, 30, { align: 'center' });
+    const isMaster = MASTER_CLASSES.includes(cls);
+    const levelTitle = isMaster ? 'Master en informatique' : 'Licence en informatique';
+    pdf.text(`${levelTitle} : ${cls} – 2025-2026`, pw / 2, 30, { align: 'center' });
     pdf.text(`Emploi du temps de la ${tt.period}`, pw / 2, 37, { align: 'center' });
     pdf.setFontSize(9); pdf.setFont(undefined, 'italic');
     pdf.text('Les cours se dérouleront au bloc pédagogique. Le chef de classe est prié de s\'assurer de la disponibilité du vidéoprojecteur.', pw / 2, 43, { align: 'center' });
@@ -327,7 +344,8 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
   const handleDownloadAllPDF = async (tt) => {
     const logoImg = await loadLogo();
     const pdf = new jsPDF('l', 'mm', 'a4');
-    TT_CLASSES.forEach((cls, idx) => {
+    const classesInTT = Object.keys(tt.schedules || {}).sort();
+    classesInTT.forEach((cls, idx) => {
       if (idx > 0) pdf.addPage();
       drawTimetablePage(pdf, tt, cls, logoImg);
     });
@@ -385,17 +403,31 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
             <h3 className="font-heading font-semibold text-xl text-text-main">Emplois du Temps</h3>
             <p className="text-xs text-text-muted mt-0.5">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
           </div>
-          <button onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2  bg-gradient-to-r from-emerald-600 to-green-600 hover:from-indigo-700 hover:to-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
-            {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {showForm ? 'Annuler' : 'Nouvel Emploi du Temps'}
-          </button>
+          <div className="flex gap-2">
+            {showForm ? (
+              <button onClick={() => setShowForm(false)}
+                className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
+                <X className="w-4 h-4" /> Annuler
+              </button>
+            ) : (
+              <>
+                <button onClick={() => handleOpenForm('Licence')}
+                  className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
+                  <Plus className="w-4 h-4" /> Licence
+                </button>
+                <button onClick={() => handleOpenForm('Master')}
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-md">
+                  <Plus className="w-4 h-4" /> Master
+                </button>
+              </>
+            )}
+          </div>
         </div>
         {/* Filter by class */}
         {!filterClass && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Filtrer par classe :</span>
-            {['', ...TT_CLASSES].map(cls => (
+            {['', ...ALL_CLASSES].map(cls => (
               <button
                 key={cls || '__all__'}
                 onClick={() => setTtFilterClass(cls)}
@@ -403,7 +435,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                   : 'bg-bg-surface text-text-muted border-border-main hover:border-emerald-500 hover:text-emerald-600'}`}
               >
-                {cls || 'Toutes les classes'}
+                {cls || 'Toutes'}
               </button>
             ))}
           </div>
@@ -425,11 +457,11 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
             </div>
           </div>
 
-          {targetClasses.map(cls => (
+          {formClasses.map(cls => (
             <div key={cls} className="rounded-xl border border-gray-300 overflow-hidden bg-white text-black">
-              <div className="bg-blue-900 text-white px-4 py-2.5 flex justify-between items-center">
+              <div className={`${formLevel === 'Master' ? 'bg-indigo-900' : 'bg-blue-900'} text-white px-4 py-2.5 flex justify-between items-center`}>
                 <h5 className="font-bold text-sm">{cls}</h5>
-                <span className="text-xs text-blue-200">Cliquez sur une case pour saisir un cours</span>
+                <span className={`text-xs ${formLevel === 'Master' ? 'text-indigo-200' : 'text-blue-200'}`}>Cliquez sur une case pour saisir un cours</span>
               </div>
               <div className="p-3">
                 <TimetableGrid cls={cls} days={weekDays} schedules={newSchedules} mode="new" ttId={null} />
@@ -477,8 +509,8 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
                   <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block">Créé le</span>
                   <span className="text-text-main text-sm">{tt.createdAt}</span>
                 </div>
-                <div className="flex gap-1.5">
-                  {TT_CLASSES.map(c => (
+                <div className="flex gap-1.5 flex-wrap max-w-[250px]">
+                  {Object.keys(tt.schedules || {}).sort().map(c => (
                     <span key={c} className="text-[10px] px-2.5 py-0.5 bg-blue-600 text-white rounded-full font-bold shadow-sm">{c}</span>
                   ))}
                 </div>
@@ -525,9 +557,11 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
                     Télécharger tout (Global)
                   </button>
                 </div>
-                {targetClasses.map(cls => (
+                {Object.keys(tt.schedules || {}).sort().map(cls => {
+                  const isMasterClass = MASTER_CLASSES.includes(cls);
+                  return (
                   <div key={cls} className="rounded-xl border border-gray-300 overflow-hidden bg-white text-black">
-                    <div className="bg-blue-900 text-white px-4 py-2.5 flex items-center justify-between">
+                    <div className={`${isMasterClass ? 'bg-indigo-900' : 'bg-blue-900'} text-white px-4 py-2.5 flex items-center justify-between`}>
                       <h5 className="font-bold text-sm">{cls}</h5>
                       <button onClick={() => handleDownloadPDF(tt, cls)}
                         className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
@@ -565,7 +599,7 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>
