@@ -1,8 +1,28 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { recalcModuleProgress } from '../jobs/recalcModuleProgress.js';
 
 const router = Router();
+
+async function updateModuleHours(client, classId, subject, deltaHours) {
+  const { rows } = await client.query('SELECT id, total_hours, remaining_hours FROM modules WHERE class_id = $1 AND name = $2', [classId, subject]);
+  if (rows.length === 0) return;
+  const mod = rows[0];
+  const total = Number(mod.total_hours) || 0;
+  let remaining = Number(mod.remaining_hours) || 0;
+  
+  remaining = remaining + deltaHours;
+  if (remaining < 0) remaining = 0;
+  if (remaining > total) remaining = total;
+  
+  const completed = Math.max(0, total - remaining);
+  const progress = total > 0 ? Math.min(Math.round((completed / total) * 100), 100) : 0;
+  const status = progress >= 100 ? 'Terminé' : 'En cours';
+  
+  await client.query(
+    'UPDATE modules SET remaining_hours = $1, progress = $2, status = $3 WHERE id = $4',
+    [remaining, progress, status, mod.id]
+  );
+}
 
 // GET /api/timetables – retourne tous les emplois du temps avec sessions et notes imbriquées
 router.get('/', async (req, res) => {
@@ -110,6 +130,7 @@ router.post('/', async (req, res) => {
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
               [id, classId, parseInt(dayIdx), parseInt(slotIdx), session.subject, session.type || 'Cours', session.teacher || '', session.room || '', isForced]
             );
+            await updateModuleHours(client, classId, session.subject, -2);
           }
         }
       }
@@ -129,8 +150,6 @@ router.post('/', async (req, res) => {
     }
 
     await client.query('COMMIT');
-    // Recalculate module progress based on new timetable sessions
-    await recalcModuleProgress();
     res.status(201).json({ id, period, start_date });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -166,6 +185,10 @@ router.put('/:id', async (req, res) => {
 
     // Remplacement de toutes les sessions
     if (schedules) {
+      const { rows: oldSessions } = await client.query('SELECT class_id, subject FROM timetable_sessions WHERE timetable_id = $1', [ttId]);
+      for (const oldS of oldSessions) {
+        await updateModuleHours(client, oldS.class_id, oldS.subject, 2);
+      }
       await client.query('DELETE FROM timetable_sessions WHERE timetable_id = $1', [ttId]);
       for (const [className, days] of Object.entries(schedules)) {
         const classId = classMap[className];
@@ -181,6 +204,7 @@ router.put('/:id', async (req, res) => {
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
               [ttId, classId, parseInt(dayIdx), parseInt(slotIdx), session.subject, session.type || 'Cours', session.teacher || '', session.room || '', isForced]
             );
+            await updateModuleHours(client, classId, session.subject, -2);
           }
         }
       }
@@ -201,8 +225,6 @@ router.put('/:id', async (req, res) => {
     }
 
     await client.query('COMMIT');
-    // Recalculate module progress after timetable update
-    await recalcModuleProgress();
     res.json({ success: true });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -224,14 +246,22 @@ router.put('/:id', async (req, res) => {
 
 // DELETE /api/timetables/:id
 router.delete('/:id', async (req, res) => {
+  const client = await pool.connect();
   try {
-    await pool.query('DELETE FROM timetables WHERE id = $1', [req.params.id]);
-    // Recalculate module progress after timetable deletion
-    await recalcModuleProgress();
+    await client.query('BEGIN');
+    const { rows: oldSessions } = await client.query('SELECT class_id, subject FROM timetable_sessions WHERE timetable_id = $1', [req.params.id]);
+    for (const oldS of oldSessions) {
+      await updateModuleHours(client, oldS.class_id, oldS.subject, 2);
+    }
+    await client.query('DELETE FROM timetables WHERE id = $1', [req.params.id]);
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Erreur serveur.' });
+  } finally {
+    client.release();
   }
 });
 

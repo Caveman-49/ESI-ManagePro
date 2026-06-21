@@ -1536,7 +1536,8 @@ function App() {
       return;
     }
     let th = parseInt(totalHours) || 0;
-    let rh = parseInt(remainingHours) || 0;
+    let rh = parseInt(remainingHours);
+    if (isNaN(rh)) rh = th;
     let prg = parseInt(progress) || 0;
 
     if (status === 'Terminé') {
