@@ -89,9 +89,9 @@ function makeEmptySchedules(classesList) {
 }
 
 // --- Weekly Timetable Component ---------------------------------------
-function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, onDataChange }) {
+function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, onDataChange, modules = [] }) {
   const [ttFilterClass, setTtFilterClass] = useState('');
-  
+
   // We compute the global targetClasses only for filtering, but for creating a new form, we use formClasses.
   const ALL_CLASSES = [...LICENCE_CLASSES, ...MASTER_CLASSES];
   const filterClasses = filterClass
@@ -560,46 +560,47 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
                 {Object.keys(tt.schedules || {}).sort().map(cls => {
                   const isMasterClass = MASTER_CLASSES.includes(cls);
                   return (
-                  <div key={cls} className="rounded-xl border border-gray-300 overflow-hidden bg-white text-black">
-                    <div className={`${isMasterClass ? 'bg-indigo-900' : 'bg-blue-900'} text-white px-4 py-2.5 flex items-center justify-between`}>
-                      <h5 className="font-bold text-sm">{cls}</h5>
-                      <button onClick={() => handleDownloadPDF(tt, cls)}
-                        className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        Télécharger PDF
-                      </button>
-                    </div>
-                    <div className="p-3">
-                      <TimetableGrid cls={cls} days={tt.days} schedules={tt.schedules} mode="saved" ttId={tt.id} />
-                      <div className="mt-3">
-                        <input type="text"
-                          value={tt.notes?.[cls] || ''}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setTimetables(prev => prev.map(saved => {
-                              if (saved.id !== tt.id) return saved;
-                              const updatedNotes = { ...saved.notes, [cls]: val };
-                              return { ...saved, notes: updatedNotes };
-                            }));
-                          }}
-                          onBlur={async (e) => {
-                            const val = e.target.value;
-                            const updatedNotes = { ...tt.notes, [cls]: val };
-                            try {
-                              await api.updateTimetable(tt.id, {
-                                ...tt,
-                                notes: updatedNotes
-                              });
-                            } catch (err) {
-                              console.error("Failed to save note update:", err);
-                            }
-                          }}
-                          placeholder="Ajouter une note (ex: Changement de salle, absence...)"
-                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 bg-gray-50" />
+                    <div key={cls} className="rounded-xl border border-gray-300 overflow-hidden bg-white text-black">
+                      <div className={`${isMasterClass ? 'bg-indigo-900' : 'bg-blue-900'} text-white px-4 py-2.5 flex items-center justify-between`}>
+                        <h5 className="font-bold text-sm">{cls}</h5>
+                        <button onClick={() => handleDownloadPDF(tt, cls)}
+                          className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                          Télécharger PDF
+                        </button>
+                      </div>
+                      <div className="p-3">
+                        <TimetableGrid cls={cls} days={tt.days} schedules={tt.schedules} mode="saved" ttId={tt.id} />
+                        <div className="mt-3">
+                          <input type="text"
+                            value={tt.notes?.[cls] || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setTimetables(prev => prev.map(saved => {
+                                if (saved.id !== tt.id) return saved;
+                                const updatedNotes = { ...saved.notes, [cls]: val };
+                                return { ...saved, notes: updatedNotes };
+                              }));
+                            }}
+                            onBlur={async (e) => {
+                              const val = e.target.value;
+                              const updatedNotes = { ...tt.notes, [cls]: val };
+                              try {
+                                await api.updateTimetable(tt.id, {
+                                  ...tt,
+                                  notes: updatedNotes
+                                });
+                              } catch (err) {
+                                console.error("Failed to save note update:", err);
+                              }
+                            }}
+                            placeholder="Ajouter une note (ex: Changement de salle, absence...)"
+                            className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 bg-gray-50" />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )})}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -627,7 +628,44 @@ function EmploiDuTempsView({ darkMode, filterClass, timetables, setTimetables, o
             <div className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Matière *</label>
-                <input value={sessionModal.data.subject} onChange={e => setSessionModal(m => ({ ...m, data: { ...m.data, subject: e.target.value } }))} className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm" placeholder="Ex: Algorithmique" />
+                {(() => {
+                  const classModules = modules.filter(m => m.className === sessionModal.cls);
+                  const isKnown = classModules.some(m => m.name === sessionModal.data.subject);
+                  const selectVal = isKnown ? sessionModal.data.subject : (sessionModal.data.subject ? '__autre__' : '');
+                  return (
+                    <div className="space-y-2">
+                      <select
+                        value={selectVal}
+                        onChange={e => {
+                          if (e.target.value === '__autre__') {
+                            setSessionModal(m => ({ ...m, data: { ...m.data, subject: '' }, isCustom: true }));
+                          } else {
+                            const selMod = classModules.find(m => m.name === e.target.value);
+                            setSessionModal(m => ({ ...m, data: { ...m.data, subject: e.target.value, teacher: selMod ? (selMod.teacher || '') : m.data.teacher }, isCustom: false }));
+                          }
+                        }}
+                        className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm"
+                      >
+                        <option value="" disabled>Sélectionner un module</option>
+                        {classModules.map(m => (
+                          <option key={m.id} value={m.name}>
+                            {m.name} ({m.remainingHours}h restantes)
+                          </option>
+                        ))}
+                        <option value="__autre__">Autre (Saisie libre)...</option>
+                      </select>
+                      {(!isKnown && sessionModal.data.subject) || sessionModal.isCustom ? (
+                        <input
+                          value={sessionModal.data.subject}
+                          onChange={e => setSessionModal(m => ({ ...m, data: { ...m.data, subject: e.target.value } }))}
+                          className="w-full px-3 py-2.5 bg-bg-main border border-border-main rounded-xl text-sm"
+                          placeholder="Nom de la matière..."
+                          autoFocus
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })()}
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Type</label>
@@ -872,7 +910,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
                           onChange={e => updateEvalStatus(ev.id, e.target.value)}
                           className={`text-[10px] font-bold uppercase rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none transition
                             ${ev.status === 'Effectué' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                                                         'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'  }
+                              'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'}
                           `}
                         >
                           <option value="Planifié">Planifié</option>
@@ -897,7 +935,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
 
         {innerTab === 'emploidutemps' && (
           <div className="bg-bg-main border border-border-main p-6 rounded-xl animate-fade-in">
-            <EmploiDuTempsView darkMode={darkMode} selectedYear="2026" timetables={timetables} setTimetables={setTimetables} filterClass={cls.name} filterSemester={selectedSemester} onDataChange={loadData} />
+            <EmploiDuTempsView darkMode={darkMode} selectedYear="2026" timetables={timetables} setTimetables={setTimetables} filterClass={cls.name} filterSemester={selectedSemester} onDataChange={loadData} modules={modules} />
           </div>
         )}
 
@@ -924,7 +962,7 @@ const ClassDetailView = ({ cls, onBack, modules, evaluations, timetables, setTim
             {semesterEvals.length > 0 && (() => {
               const evEffectue = semesterEvals.filter(e => e.status === 'Effectué').length;
               const evPlanifie = semesterEvals.filter(e => e.status === 'Planifié').length;
-              const tauxEval   = semesterEvals.length > 0 ? Math.round((evEffectue / semesterEvals.length) * 100) : 0;
+              const tauxEval = semesterEvals.length > 0 ? Math.round((evEffectue / semesterEvals.length) * 100) : 0;
               return (
                 <div className="bg-bg-main border border-border-main p-6 rounded-xl space-y-4">
                   <h4 className="font-heading font-bold text-base text-text-main">Progression des Évaluations</h4>
@@ -1228,7 +1266,7 @@ function App() {
     : (classPerformanceState.length ? classPerformanceState : classes.map(cls => ({ name: cls.name || 'Classe', average: 0 })));
 
   const availableYears = useMemo(() => academicYears.map(ay => ay.label), [academicYears]);
-const loadData = async () => {
+  const loadData = async () => {
     try {
       const years = await api.getAcademicYears();
       setAcademicYears(years);
@@ -1268,7 +1306,7 @@ const loadData = async () => {
       const mappedModules = rawMods.map(m => {
         const profObj = mappedProfs.find(p => p.id === (m.teacher_id || m.teacherId));
         const classObj = mappedClasses.find(c => c.id === (m.class_id || m.classId));
-        
+
         return {
           id: m.id,
           name: m.name,
@@ -1978,7 +2016,7 @@ const loadData = async () => {
                     </div>
                   ) : (
                     <div className="bg-bg-surface border border-border-main p-6 rounded-2xl text-center text-text-muted text-sm">
-                      Aucune évaluation planifiée.
+                      Aucune évaluation planifiée pour aujourd'hui.
                     </div>
                   )}
 
@@ -2000,7 +2038,7 @@ const loadData = async () => {
 
           {/* TAB 2: EMPLOI DU TEMPS */}
           {currentTab === 'emploidutemps' && (
-            <EmploiDuTempsView darkMode={darkMode} selectedYear={selectedYear} timetables={timetables} setTimetables={setTimetables} onDataChange={loadData} />
+            <EmploiDuTempsView darkMode={darkMode} selectedYear={selectedYear} timetables={timetables} setTimetables={setTimetables} onDataChange={loadData} modules={modules} />
           )}
 
           {/* TAB 3: CLASSES */}
@@ -2624,7 +2662,7 @@ const loadData = async () => {
                       className={`px-3 py-1 rounded-full text-[11px] font-semibold border transition-all ${evalFilterStatus === opt.value
                         ? opt.value === 'Effectué' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                           : opt.value === 'Planifié' ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                          : 'bg-slate-600 text-white border-slate-600 shadow-sm'
+                            : 'bg-slate-600 text-white border-slate-600 shadow-sm'
                         : 'bg-bg-surface text-text-muted border-border-main hover:border-emerald-500 hover:text-emerald-600'}`}
                     >
                       {opt.label}
@@ -2671,8 +2709,8 @@ const loadData = async () => {
                             value={ev.status}
                             onChange={e => updateEvalStatus(ev.id, e.target.value)}
                             className={`text-[10px] font-bold uppercase rounded-full border px-2.5 py-1 cursor-pointer focus:outline-none transition
-                              ${ev.status === 'Effectué'  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                                                             'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'  }
+                              ${ev.status === 'Effectué' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                                'bg-indigo-500/10  text-indigo-600  border-indigo-500/20'}
                             `}
                           >
                             <option value="Planifié">Planifié</option>
